@@ -6,6 +6,8 @@ import conversationsRouter from "./conversations";
 import podcastsRouter from "./podcasts";
 import memesRouter from "./memes";
 import statusesRouter from "./statuses";
+import presenceRouter from "./presence";
+import typingRouter from "./typing";
 
 const router: IRouter = Router();
 
@@ -16,5 +18,7 @@ router.use("/conversations", conversationsRouter);
 router.use("/podcasts", podcastsRouter);
 router.use("/memes", memesRouter);
 router.use("/statuses", statusesRouter);
+router.use(presenceRouter);
+router.use(typingRouter);
 
 export default router;

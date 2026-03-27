@@ -11,6 +11,8 @@ export const usersTable = pgTable("users", {
   status: text("status").default("🟢 Available"),
   statusUpdatedAt: timestamp("status_updated_at").defaultNow(),
   isOwner: boolean("is_owner").notNull().default(false),
+  isOnline: boolean("is_online").notNull().default(false),
+  lastSeenAt: timestamp("last_seen_at").defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, FlatList, Pressable, TextInput,
   Image, ActivityIndicator, Platform, Alert, ScrollView,
@@ -47,11 +47,91 @@ function formatMsgTime(date: string) {
   const d = new Date(date);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
+function formatLastSeen(lastSeenAt: string | null | undefined): string {
+  if (!lastSeenAt) return "last seen a while ago";
+  const d = new Date(lastSeenAt);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+
+  if (diffMins < 1) return "last seen just now";
+  if (diffMins < 60) return `last seen ${diffMins}m ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) {
+    const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return `last seen today at ${t}`;
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return `last seen yesterday at ${t}`;
+  }
+  const diffDays = Math.floor(diffMs / 86_400_000);
+  if (diffDays < 7) return `last seen ${diffDays}d ago`;
+  return `last seen ${d.toLocaleDateString([], { day: "numeric", month: "short" })}`;
+}
+
 function getBubbleRadius(style: AppSettings["bubbleStyle"]) {
   return style === "sharp" ? 6 : style === "balloon" ? 28 : 18;
 }
 function getFontSize(size: AppSettings["fontSize"]) {
   return size === "small" ? 13 : size === "large" ? 18 : 15;
+}
+
+// ─── Typing / Recording bubble ────────────────────────────────────────────────
+function TypingBubble({ type, theme, r }: { type: "typing" | "recording"; theme: any; r: number }) {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const bounce = (v: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(v, { toValue: -6, duration: 280, useNativeDriver: true }),
+          Animated.timing(v, { toValue: 0, duration: 280, useNativeDriver: true }),
+          Animated.delay(600),
+        ])
+      );
+    const a1 = bounce(dot1, 0);
+    const a2 = bounce(dot2, 140);
+    const a3 = bounce(dot3, 280);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, []);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, marginBottom: 8 }}>
+      <View style={{ width: 30, marginRight: 6 }}>
+        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}>
+          <Feather name={type === "recording" ? "mic" : "more-horizontal"} size={12} color={theme.primary} />
+        </View>
+      </View>
+      <View style={{
+        backgroundColor: theme.bubble,
+        borderRadius: r, paddingHorizontal: 16, paddingVertical: 12,
+        borderWidth: 1, borderColor: theme.border,
+        flexDirection: "row", alignItems: "center", gap: 5,
+      }}>
+        {type === "recording" ? (
+          <>
+            {[3, 6, 9, 7, 4, 8, 5].map((h, i) => (
+              <Animated.View key={i} style={{ width: 3, height: h, borderRadius: 2, backgroundColor: theme.primary, opacity: 0.7 }} />
+            ))}
+          </>
+        ) : (
+          <>
+            {[dot1, dot2, dot3].map((d, i) => (
+              <Animated.View
+                key={i}
+                style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.textSecondary, transform: [{ translateY: d }] }}
+              />
+            ))}
+          </>
+        )}
+      </View>
+    </View>
+  );
 }
 
 // ─── Swipeable message row ─────────────────────────────────────────────────────
@@ -181,7 +261,8 @@ export default function ChatScreen() {
   const { theme } = useTheme();
   const { user, token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { id, name, username } = useLocalSearchParams<{ id: string; name: string; username: string }>();
+  const { id, name, username, userId: otherUserIdParam } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string }>();
+  const otherUserId = otherUserIdParam ? parseInt(otherUserIdParam, 10) : null;
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -190,6 +271,7 @@ export default function ChatScreen() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [reactions, setReactions] = useState<Record<number, string[]>>({});
   const [reactionPickerMsg, setReactionPickerMsg] = useState<Message | null>(null);
+  const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     fontSize: "medium", bubbleStyle: "rounded", readReceipts: true, enterToSend: false, vibrationEnabled: true,
   });
@@ -197,6 +279,8 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null);
   const queryClient = useQueryClient();
   const lastMsgCount = useRef(0);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
 
   useEffect(() => {
     initSoundSettings();
@@ -221,6 +305,59 @@ export default function ChatScreen() {
     refetchInterval: 3000,
   });
 
+  // Presence: poll the other user's online/last-seen status
+  const { data: presence } = useQuery<{ isOnline: boolean; lastSeenAt: string | null }>({
+    queryKey: ["presence", otherUserId],
+    queryFn: () => apiRequest(`/presence/${otherUserId}`),
+    enabled: !!token && !!otherUserId,
+    refetchInterval: 8000,
+  });
+
+  // Typing: poll who's typing in this conversation
+  const { data: whoTyping } = useQuery<{ userId: number; displayName: string; type: "typing" | "recording" }[]>({
+    queryKey: ["typing", id],
+    queryFn: () => apiRequest(`/conversations/${id}/typing`),
+    enabled: !!token && !!id,
+    refetchInterval: 2500,
+  });
+
+  // Derive header status string
+  const headerStatus = useMemo(() => {
+    if (whoTyping && whoTyping.length > 0) {
+      const t = whoTyping[0];
+      return { text: t.type === "recording" ? "recording..." : "typing...", color: "#22c55e", animate: true };
+    }
+    if (presence?.isOnline) return { text: "online", color: "#22c55e", animate: false };
+    return { text: formatLastSeen(presence?.lastSeenAt), color: undefined, animate: false };
+  }, [whoTyping, presence]);
+
+  // Notify server when I'm typing/stopped
+  const sendTypingEvent = useCallback((type: "typing" | "stopped") => {
+    if (!token || !id) return;
+    const now = Date.now();
+    if (type === "typing" && now - lastTypingSentRef.current < 2000) return;
+    lastTypingSentRef.current = now;
+    apiRequest(`/conversations/${id}/typing`, { method: "POST", body: JSON.stringify({ type }) }).catch(() => {});
+  }, [id, token]);
+
+  // Track text changes to send typing events
+  useEffect(() => {
+    if (text.length > 0) {
+      sendTypingEvent("typing");
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingEvent("stopped");
+      }, 3000);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      sendTypingEvent("stopped");
+    }
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [text]);
+
+  // Update local typing state for the indicator dots (local user) — not needed but kept for clarity
   useEffect(() => {
     if (!messages) return;
     const newCount = messages.length;
@@ -418,8 +555,17 @@ export default function ChatScreen() {
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.success }} />
-            <Text style={{ fontSize: 12, color: theme.textSecondary, fontFamily: "Inter_400Regular" }}>online</Text>
+            {(presence?.isOnline || (whoTyping && whoTyping.length > 0)) && (
+              <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#22c55e" }} />
+            )}
+            <Text style={{
+              fontSize: 12,
+              color: headerStatus.color ?? theme.textSecondary,
+              fontFamily: (whoTyping && whoTyping.length > 0) ? "Inter_600SemiBold" : "Inter_400Regular",
+              fontStyle: (whoTyping && whoTyping.length > 0) ? "italic" : "normal",
+            }}>
+              {headerStatus.text}
+            </Text>
           </View>
         </View>
         <View style={{ flexDirection: "row", gap: 4 }}>
@@ -445,6 +591,11 @@ export default function ChatScreen() {
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingVertical: 12, paddingBottom: 4 }}
+        ListHeaderComponent={
+          whoTyping && whoTyping.length > 0 ? (
+            <TypingBubble type={whoTyping[0].type} theme={theme} r={r} />
+          ) : null
+        }
         ListEmptyComponent={
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingTop: 80, transform: [{ scaleY: -1 }] }}>
             <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>

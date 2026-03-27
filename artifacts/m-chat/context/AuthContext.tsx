@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setToken } from "@/utils/api";
+import { setToken, apiRequest } from "@/utils/api";
 
 export interface UserData {
   id: number;
@@ -35,6 +35,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startHeartbeat = () => {
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    // Send immediately, then every 30s
+    apiRequest("/presence/heartbeat", { method: "POST" }).catch(() => {});
+    heartbeatRef.current = setInterval(() => {
+      apiRequest("/presence/heartbeat", { method: "POST" }).catch(() => {});
+    }, 30_000);
+  };
+
+  const stopHeartbeat = () => {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -44,9 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(savedToken);
         setTokenState(savedToken);
         setUser(JSON.parse(savedUser));
+        // Start heartbeat once token is loaded
+        setTimeout(startHeartbeat, 500);
       }
       setIsLoading(false);
     })();
+
+    return () => stopHeartbeat();
   }, []);
 
   const login = async (t: string, u: UserData) => {
@@ -55,9 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(t);
     setTokenState(t);
     setUser(u);
+    startHeartbeat();
   };
 
   const logout = async () => {
+    stopHeartbeat();
     await AsyncStorage.removeItem("mchat_token");
     await AsyncStorage.removeItem("mchat_user");
     setToken(null);
