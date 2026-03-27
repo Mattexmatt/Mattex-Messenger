@@ -6,37 +6,41 @@ import { requireAuth, type AuthRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+function formatUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    status: user.status ?? "🟢 Available",
+    statusUpdatedAt: user.statusUpdatedAt,
+    isOwner: user.isOwner,
+    createdAt: user.createdAt,
+  };
+}
+
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json({
-    id: user.id,
-    username: user.username,
-    displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    isOwner: user.isOwner,
-    createdAt: user.createdAt,
-  });
+  res.json(formatUser(user));
 });
 
 router.put("/me", requireAuth, async (req: AuthRequest, res) => {
-  const { displayName, avatarUrl } = req.body;
-  const updates: { displayName?: string; avatarUrl?: string | null } = {};
+  const { displayName, avatarUrl, status } = req.body;
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+
   if (displayName) updates.displayName = displayName;
   if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+  if (status !== undefined) {
+    updates.status = status;
+    updates.statusUpdatedAt = new Date();
+  }
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.userId!)).returning();
-  res.json({
-    id: user.id,
-    username: user.username,
-    displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    isOwner: user.isOwner,
-    createdAt: user.createdAt,
-  });
+  res.json(formatUser(user));
 });
 
 router.get("/search", requireAuth, async (req: AuthRequest, res) => {
@@ -49,14 +53,7 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
     .where(ilike(usersTable.username, `%${q}%`))
     .limit(20);
 
-  res.json(users.filter(u => u.id !== req.userId).map(u => ({
-    id: u.id,
-    username: u.username,
-    displayName: u.displayName,
-    avatarUrl: u.avatarUrl,
-    isOwner: u.isOwner,
-    createdAt: u.createdAt,
-  })));
+  res.json(users.filter(u => u.id !== req.userId).map(formatUser));
 });
 
 export default router;

@@ -9,7 +9,6 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
 const STATUS_PRESETS = [
@@ -29,27 +28,37 @@ export default function MyProfileScreen() {
   const { user, updateUser } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [status, setStatus] = useState("🟢 Available");
+  const [status, setStatus] = useState(user?.status ?? "🟢 Available");
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [customStatus, setCustomStatus] = useState("");
   const [showEditName, setShowEditName] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? "");
   const [saving, setSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem("mchat_status").then((s) => {
-      if (s) setStatus(s);
-    });
-  }, []);
+    if (user?.status) setStatus(user.status);
+  }, [user?.status]);
 
   const applyStatus = async (val: string) => {
-    setStatus(val);
-    await AsyncStorage.setItem("mchat_status", val);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowStatusPicker(false);
-    setShowCustom(false);
+    setSavingStatus(true);
+    try {
+      const updated = await apiRequest("/users/me", {
+        method: "PUT",
+        body: JSON.stringify({ status: val }),
+      });
+      updateUser(updated);
+      setStatus(val);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setShowStatusPicker(false);
+      setShowCustom(false);
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setSavingStatus(false);
+    }
   };
 
   const handleSave = async () => {

@@ -8,9 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/utils/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 
 const STATUS_PRESETS = [
@@ -26,16 +25,29 @@ const STATUS_PRESETS = [
 ];
 
 interface ConvUser {
-  id: number; username: string; displayName: string; avatarUrl?: string | null; isOwner: boolean; createdAt: string;
+  id: number; username: string; displayName: string; avatarUrl?: string | null;
+  status?: string | null; statusUpdatedAt?: string | null; isOwner: boolean; createdAt: string;
 }
 interface Conversation {
   id: number; otherUser: ConvUser; updatedAt: string;
 }
 
-function AvatarRing({ user, size = 52, color, hasUpdate }: { user: ConvUser; size?: number; color: string; hasUpdate: boolean }) {
+function formatStatusTime(ts?: string | null): string {
+  if (!ts) return "Status not set";
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} hr ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function AvatarRing({ user, size = 52, color, hasStatus }: { user: ConvUser; size?: number; color: string; hasStatus: boolean }) {
   return (
     <View style={{ position: "relative" }}>
-      <View style={{ borderWidth: hasUpdate ? 2.5 : 1.5, borderColor: hasUpdate ? color : `${color}44`, borderRadius: (size + 10) / 2, padding: 2 }}>
+      <View style={{ borderWidth: hasStatus ? 2.5 : 1, borderColor: hasStatus ? color : `${color}33`, borderRadius: (size + 12) / 2, padding: 2 }}>
         {user.avatarUrl ? (
           <Image source={{ uri: user.avatarUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} />
         ) : (
@@ -44,8 +56,8 @@ function AvatarRing({ user, size = 52, color, hasUpdate }: { user: ConvUser; siz
           </View>
         )}
       </View>
-      {hasUpdate && (
-        <View style={{ position: "absolute", bottom: 2, right: 2, width: 13, height: 13, borderRadius: 7, backgroundColor: color, borderWidth: 2, borderColor: "#000" }} />
+      {hasStatus && (
+        <View style={{ position: "absolute", bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: color, borderWidth: 2, borderColor: "#000" }} />
       )}
     </View>
   );
@@ -53,31 +65,38 @@ function AvatarRing({ user, size = 52, color, hasUpdate }: { user: ConvUser; siz
 
 export default function StatusScreen() {
   const { theme } = useTheme();
-  const { user, token } = useAuth();
+  const { user, token, updateUser } = useAuth();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
-  const [myStatus, setMyStatus] = useState("🟢 Available");
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customStatus, setCustomStatus] = useState("");
+  const [savingStatus, setSavingStatus] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem("mchat_status").then((s) => { if (s) setMyStatus(s); });
-  }, []);
-
-  const { data: conversations } = useQuery<Conversation[]>({
+  const { data: conversations, isLoading } = useQuery<Conversation[]>({
     queryKey: ["conversations", token],
     queryFn: () => apiRequest("/conversations"),
     enabled: !!token,
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
 
   const applyStatus = async (val: string) => {
-    setMyStatus(val);
-    await AsyncStorage.setItem("mchat_status", val);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowStatusPicker(false);
-    setShowCustom(false);
+    setSavingStatus(true);
+    try {
+      const updated = await apiRequest("/users/me", {
+        method: "PUT",
+        body: JSON.stringify({ status: val }),
+      });
+      updateUser(updated);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setShowStatusPicker(false);
+      setShowCustom(false);
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setSavingStatus(false);
+    }
   };
 
   const bg = theme.background;
@@ -90,6 +109,9 @@ export default function StatusScreen() {
 
   const AVATAR_COLORS = [primary, theme.accent, "#FF6B9D", "#C77DFF", "#4FC3F7", "#FFB74D", "#69F0AE"];
   const contacts = conversations?.map(c => c.otherUser) ?? [];
+  const myStatus = user?.status ?? "🟢 Available";
+  const myStatusEmoji = myStatus.split(" ")[0];
+  const myStatusText = myStatus.split(" ").slice(1).join(" ") || myStatus;
 
   if (!token) {
     return (
@@ -104,7 +126,7 @@ export default function StatusScreen() {
       {/* Header */}
       <View style={{ paddingTop: insets.top + (Platform.OS === "web" ? 72 : 16), paddingHorizontal: 20, paddingBottom: 20, backgroundColor: theme.gradientTop }}>
         <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: txt }}>Updates</Text>
-        <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 3 }}>Status & recent activity</Text>
+        <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 3 }}>Live status from your contacts</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
@@ -112,17 +134,16 @@ export default function StatusScreen() {
         {/* My Status */}
         <View style={{ paddingHorizontal: 16, paddingTop: 20 }}>
           <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_600SemiBold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>My Status</Text>
-
           <Pressable
             style={({ pressed }) => ({
               flexDirection: "row", alignItems: "center", gap: 16,
               backgroundColor: surf, borderRadius: 18, padding: 16,
-              borderWidth: 1.5, borderColor: primary + "66",
+              borderWidth: 1.5, borderColor: `${primary}55`,
               opacity: pressed ? 0.85 : 1,
             })}
             onPress={() => setShowStatusPicker(true)}
+            disabled={savingStatus}
           >
-            {/* Avatar with camera add icon */}
             <View style={{ position: "relative" }}>
               {user?.avatarUrl ? (
                 <Image source={{ uri: user.avatarUrl }} style={{ width: 60, height: 60, borderRadius: 30, borderWidth: 2.5, borderColor: primary }} />
@@ -132,41 +153,49 @@ export default function StatusScreen() {
                 </View>
               )}
               <View style={{ position: "absolute", bottom: -2, right: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: primary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: surf }}>
-                <Feather name="edit-2" size={11} color={bg} />
+                {savingStatus
+                  ? <ActivityIndicator size="small" color={bg} />
+                  : <Feather name="edit-2" size={11} color={bg} />}
               </View>
             </View>
 
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>{user?.displayName}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-                <Text style={{ fontSize: 18 }}>{myStatus.split(" ")[0]}</Text>
-                <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular" }}>{myStatus.split(" ").slice(1).join(" ")}</Text>
+                <Text style={{ fontSize: 18 }}>{myStatusEmoji}</Text>
+                <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular" }}>{myStatusText}</Text>
               </View>
-              <Text style={{ fontSize: 11, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 4 }}>Tap to update your status</Text>
+              <Text style={{ fontSize: 11, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 4 }}>
+                Updated {user?.statusUpdatedAt ? formatStatusTime(user.statusUpdatedAt) : "just now"}
+              </Text>
             </View>
-
             <Feather name="chevron-right" size={18} color={txtMut} />
           </Pressable>
         </View>
 
-        {/* Recent Updates from Contacts */}
+        {/* Contact Statuses */}
         <View style={{ paddingHorizontal: 16, paddingTop: 28 }}>
-          <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_600SemiBold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
-            Recent Updates
-          </Text>
+          <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_600SemiBold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>Contact Status</Text>
 
-          {contacts.length === 0 ? (
+          {isLoading ? (
+            <View style={{ padding: 40, alignItems: "center" }}>
+              <ActivityIndicator color={primary} />
+            </View>
+          ) : contacts.length === 0 ? (
             <View style={{ backgroundColor: surf, borderRadius: 16, padding: 32, alignItems: "center", gap: 12, borderWidth: 1, borderColor: border }}>
               <Ionicons name="radio-outline" size={48} color={txtMut} />
-              <Text style={{ color: txtSec, fontSize: 16, fontFamily: "Inter_500Medium" }}>No updates yet</Text>
-              <Text style={{ color: txtMut, fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" }}>When your contacts set their status, they'll appear here</Text>
+              <Text style={{ color: txtSec, fontSize: 16, fontFamily: "Inter_500Medium" }}>No contacts yet</Text>
+              <Text style={{ color: txtMut, fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" }}>Start a chat and their status will appear here</Text>
             </View>
           ) : (
             <View style={{ backgroundColor: surf, borderRadius: 16, borderWidth: 1, borderColor: border, overflow: "hidden" }}>
               {contacts.map((contact, idx) => {
                 const color = AVATAR_COLORS[contact.id % AVATAR_COLORS.length];
-                const hasUpdate = idx < 3;
-                const timeAgo = hasUpdate ? (idx === 0 ? "just now" : idx === 1 ? "5 mins ago" : "1 hr ago") : "No updates";
+                const contactStatus = contact.status ?? "🟢 Available";
+                const statusEmoji = contactStatus.split(" ")[0];
+                const statusText = contactStatus.split(" ").slice(1).join(" ") || contactStatus;
+                const timeStr = formatStatusTime(contact.statusUpdatedAt);
+                const hasStatus = !!contact.status;
 
                 return (
                   <React.Fragment key={contact.id}>
@@ -175,20 +204,20 @@ export default function StatusScreen() {
                         flexDirection: "row", alignItems: "center", gap: 14,
                         paddingHorizontal: 16, paddingVertical: 14,
                         opacity: pressed ? 0.7 : 1,
-                        backgroundColor: hasUpdate ? `${color}08` : "transparent",
                       })}
-                      onPress={() => hasUpdate && Alert.alert(`${contact.displayName}'s Status`, "🟢 Available")}
+                      onPress={() => router.push({ pathname: "/chat/[id]", params: { id: conversations![idx].id, name: contact.displayName, username: contact.username } })}
                     >
-                      <AvatarRing user={contact} size={50} color={color} hasUpdate={hasUpdate} />
+                      <AvatarRing user={contact} size={50} color={color} hasStatus={hasStatus} />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: hasUpdate ? txt : txtSec }}>{contact.displayName}</Text>
-                        <Text style={{ fontSize: 12, color: hasUpdate ? color : txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>
-                          {hasUpdate ? `🟢 Available · ${timeAgo}` : "No recent updates"}
-                        </Text>
+                        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{contact.displayName}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                          <Text style={{ fontSize: 14 }}>{statusEmoji}</Text>
+                          <Text style={{ fontSize: 13, color: hasStatus ? color : txtMut, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+                            {statusText}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>{timeStr}</Text>
                       </View>
-                      {hasUpdate && (
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-                      )}
                     </Pressable>
                     {idx < contacts.length - 1 && <View style={{ height: 1, backgroundColor: border, marginLeft: 80 }} />}
                   </React.Fragment>
@@ -202,30 +231,19 @@ export default function StatusScreen() {
         <View style={{ paddingHorizontal: 16, paddingTop: 28 }}>
           <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_600SemiBold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>Quick Actions</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable
-              style={{ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 18, alignItems: "center", gap: 10, borderWidth: 1, borderColor: border }}
-              onPress={() => router.push("/my-profile")}
-            >
+            <Pressable style={{ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 18, alignItems: "center", gap: 10, borderWidth: 1, borderColor: border }} onPress={() => router.push("/my-profile")}>
               <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center" }}>
                 <Feather name="user" size={22} color={primary} />
               </View>
               <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: txt, textAlign: "center" }}>My Profile</Text>
             </Pressable>
-
-            <Pressable
-              style={{ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 18, alignItems: "center", gap: 10, borderWidth: 1, borderColor: border }}
-              onPress={() => setShowStatusPicker(true)}
-            >
+            <Pressable style={{ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 18, alignItems: "center", gap: 10, borderWidth: 1, borderColor: border }} onPress={() => setShowStatusPicker(true)}>
               <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: `${theme.accent}22`, alignItems: "center", justifyContent: "center" }}>
                 <Feather name="zap" size={22} color={theme.accent} />
               </View>
               <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: txt, textAlign: "center" }}>Set Status</Text>
             </Pressable>
-
-            <Pressable
-              style={{ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 18, alignItems: "center", gap: 10, borderWidth: 1, borderColor: border }}
-              onPress={() => router.push("/settings")}
-            >
+            <Pressable style={{ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 18, alignItems: "center", gap: 10, borderWidth: 1, borderColor: border }} onPress={() => router.push("/settings")}>
               <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: `${theme.success}22`, alignItems: "center", justifyContent: "center" }}>
                 <Feather name="settings" size={22} color={theme.success} />
               </View>
@@ -240,7 +258,8 @@ export default function StatusScreen() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "80%" }}>
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Set Your Status</Text>
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 4 }}>Set Your Status</Text>
+            <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginBottom: 16 }}>Your contacts will see this in real time</Text>
 
             {showCustom ? (
               <View>
@@ -258,23 +277,27 @@ export default function StatusScreen() {
                     <Text style={{ color: primary, fontFamily: "Inter_600SemiBold" }}>Back</Text>
                   </Pressable>
                   <Pressable style={{ flex: 1, backgroundColor: primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" }} onPress={() => customStatus.trim() && applyStatus(`✏️ ${customStatus.trim()}`)}>
-                    <Text style={{ color: bg, fontFamily: "Inter_600SemiBold" }}>Set Status</Text>
+                    {savingStatus ? <ActivityIndicator color={bg} /> : <Text style={{ color: bg, fontFamily: "Inter_600SemiBold" }}>Set Status</Text>}
                   </Pressable>
                 </View>
               </View>
             ) : (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {STATUS_PRESETS.map((s) => (
-                  <Pressable
-                    key={s.label}
-                    style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 12, marginBottom: 8, backgroundColor: myStatus === `${s.emoji} ${s.label}` ? `${primary}22` : theme.surfaceElevated, borderWidth: 1, borderColor: myStatus === `${s.emoji} ${s.label}` ? primary : border }}
-                    onPress={() => applyStatus(`${s.emoji} ${s.label}`)}
-                  >
-                    <Text style={{ fontSize: 22 }}>{s.emoji}</Text>
-                    <Text style={{ flex: 1, fontSize: 16, color: txt, fontFamily: "Inter_400Regular" }}>{s.label}</Text>
-                    {myStatus === `${s.emoji} ${s.label}` && <Feather name="check" size={18} color={primary} />}
-                  </Pressable>
-                ))}
+                {STATUS_PRESETS.map((s) => {
+                  const val = `${s.emoji} ${s.label}`;
+                  const active = myStatus === val;
+                  return (
+                    <Pressable
+                      key={s.label}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 12, marginBottom: 8, backgroundColor: active ? `${primary}22` : theme.surfaceElevated, borderWidth: 1, borderColor: active ? primary : border }}
+                      onPress={() => applyStatus(val)}
+                    >
+                      <Text style={{ fontSize: 22 }}>{s.emoji}</Text>
+                      <Text style={{ flex: 1, fontSize: 16, color: txt, fontFamily: "Inter_400Regular" }}>{s.label}</Text>
+                      {active && <Feather name="check" size={18} color={primary} />}
+                    </Pressable>
+                  );
+                })}
                 <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 12, backgroundColor: theme.surfaceElevated, borderWidth: 1, borderColor: border }} onPress={() => setShowCustom(true)}>
                   <Text style={{ fontSize: 22 }}>✏️</Text>
                   <Text style={{ flex: 1, fontSize: 16, color: primary, fontFamily: "Inter_500Medium" }}>Custom status...</Text>
