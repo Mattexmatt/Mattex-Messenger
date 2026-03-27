@@ -54,26 +54,28 @@ function AvatarCircle({ user, size = 52, theme }: { user: ConvUser; size?: numbe
 
 // ─── People on M Chat modal ───────────────────────────────────────────────────
 function PeopleModal({
-  visible, peopleSearch, setPeopleSearch, onClose, onStartChat, token, theme, insets, currentUserId
+  visible, peopleSearch, setPeopleSearch, onClose, onStartChat, token, theme, insets,
 }: {
   visible: boolean; peopleSearch: string; setPeopleSearch: (s: string) => void;
   onClose: () => void; onStartChat: (u: ConvUser) => void;
-  token: string | null; theme: any; insets: any; currentUserId?: number;
+  token: string | null; theme: any; insets: any;
 }) {
-  const { data: allUsers, isLoading } = useQuery<ConvUser[]>({
-    queryKey: ["allUsers", token],
-    queryFn: () => apiRequest("/users/search"),
-    enabled: !!token && visible,
-    staleTime: 30_000,
+  const hasQuery = peopleSearch.trim().length >= 2;
+
+  const { data: results, isLoading } = useQuery<ConvUser[]>({
+    queryKey: ["userSearch", token, peopleSearch.trim()],
+    queryFn: () => apiRequest(`/users/search?q=${encodeURIComponent(peopleSearch.trim())}`),
+    enabled: !!token && hasQuery,
+    staleTime: 10_000,
   });
 
-  const filtered = (allUsers ?? []).filter(u =>
-    !peopleSearch.trim() ||
-    u.displayName.toLowerCase().includes(peopleSearch.toLowerCase()) ||
-    u.username.toLowerCase().includes(peopleSearch.toLowerCase())
-  );
-
   const colors = [theme.primary, theme.accent, "#FF6B9D", "#C77DFF", "#4FC3F7", "#FFB74D", "#69F0AE"];
+
+  const searchInputRef = React.useRef<TextInput>(null);
+
+  React.useEffect(() => {
+    if (visible) setTimeout(() => searchInputRef.current?.focus(), 300);
+  }, [visible]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -92,9 +94,9 @@ function PeopleModal({
           {/* Header */}
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text }}>People on M Chat</Text>
+              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text }}>New Chat</Text>
               <Text style={{ fontSize: 13, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 2 }}>
-                {allUsers ? `${allUsers.length} user${allUsers.length !== 1 ? "s" : ""}` : "Loading..."}
+                Search by name or username
               </Text>
             </View>
             <Pressable
@@ -108,15 +110,16 @@ function PeopleModal({
           {/* Search */}
           <View style={{
             flexDirection: "row", alignItems: "center",
-            marginHorizontal: 20, marginBottom: 12,
+            marginHorizontal: 20, marginBottom: 16,
             backgroundColor: theme.surface,
-            borderRadius: 14, paddingHorizontal: 14, height: 44,
-            borderWidth: 1, borderColor: theme.border,
+            borderRadius: 14, paddingHorizontal: 14, height: 48,
+            borderWidth: 1.5, borderColor: hasQuery ? `${theme.primary}88` : theme.border,
           }}>
-            <Feather name="search" size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
+            <Feather name="search" size={17} color={hasQuery ? theme.primary : theme.textMuted} style={{ marginRight: 10 }} />
             <TextInput
-              style={{ flex: 1, fontSize: 15, color: theme.text, fontFamily: "Inter_400Regular" }}
-              placeholder="Search by name or username"
+              ref={searchInputRef}
+              style={{ flex: 1, fontSize: 16, color: theme.text, fontFamily: "Inter_400Regular" }}
+              placeholder="Type a name or @username..."
               placeholderTextColor={theme.textMuted}
               value={peopleSearch}
               onChangeText={setPeopleSearch}
@@ -124,23 +127,34 @@ function PeopleModal({
               autoCorrect={false}
             />
             {peopleSearch.length > 0 && (
-              <Pressable onPress={() => setPeopleSearch("")} hitSlop={8}>
-                <Feather name="x-circle" size={16} color={theme.textMuted} />
+              <Pressable onPress={() => setPeopleSearch("")} hitSlop={10}>
+                <Feather name="x-circle" size={17} color={theme.textMuted} />
               </Pressable>
             )}
           </View>
 
-          {/* User list */}
-          {isLoading ? (
-            <View style={{ paddingTop: 60, alignItems: "center" }}>
+          {/* Results area */}
+          {!hasQuery ? (
+            <View style={{ paddingTop: 48, alignItems: "center", gap: 14, paddingHorizontal: 40 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="search" size={36} color={theme.primary} />
+              </View>
+              <Text style={{ color: theme.text, fontFamily: "Inter_600SemiBold", fontSize: 18, textAlign: "center" }}>Find someone</Text>
+              <Text style={{ color: theme.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", lineHeight: 21 }}>
+                Type at least 2 characters to search. Share your username with friends so they can find you.
+              </Text>
+            </View>
+          ) : isLoading ? (
+            <View style={{ paddingTop: 50, alignItems: "center", gap: 12 }}>
               <ActivityIndicator color={theme.primary} />
-              <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 12, fontSize: 14 }}>Finding people...</Text>
+              <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 14 }}>Searching...</Text>
             </View>
           ) : (
             <FlatList
-              data={filtered}
+              data={results ?? []}
               keyExtractor={(u) => String(u.id)}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 4 }}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 6 }}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
                 const color = colors[item.id % colors.length];
                 return (
@@ -153,7 +167,6 @@ function PeopleModal({
                     })}
                     onPress={() => onStartChat(item)}
                   >
-                    {/* Avatar */}
                     {item.avatarUrl ? (
                       <Image source={{ uri: item.avatarUrl }} style={{ width: 52, height: 52, borderRadius: 26 }} />
                     ) : (
@@ -161,14 +174,10 @@ function PeopleModal({
                         <Text style={{ color, fontSize: 20, fontFamily: "Inter_700Bold" }}>{item.displayName[0].toUpperCase()}</Text>
                       </View>
                     )}
-
-                    {/* Info */}
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{item.displayName}</Text>
                       <Text style={{ fontSize: 13, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 2 }}>@{item.username}</Text>
                     </View>
-
-                    {/* Chat button */}
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}>
                       <Feather name="message-circle" size={17} color={theme.primary} />
                     </View>
@@ -176,9 +185,12 @@ function PeopleModal({
                 );
               }}
               ListEmptyComponent={
-                <View style={{ paddingTop: 50, alignItems: "center", gap: 10 }}>
-                  <Ionicons name="people-outline" size={52} color={theme.textMuted} />
-                  <Text style={{ color: theme.textSecondary, fontFamily: "Inter_500Medium", fontSize: 16 }}>No users found</Text>
+                <View style={{ paddingTop: 40, alignItems: "center", gap: 10 }}>
+                  <Ionicons name="search-outline" size={48} color={theme.textMuted} />
+                  <Text style={{ color: theme.textSecondary, fontFamily: "Inter_500Medium", fontSize: 16 }}>No one found for "{peopleSearch}"</Text>
+                  <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 20 }}>
+                    Make sure you have the right spelling
+                  </Text>
                 </View>
               }
             />
@@ -482,7 +494,6 @@ export default function ChatsScreen() {
         token={token}
         theme={theme}
         insets={insets}
-        currentUserId={user?.id}
       />
 
       {/* Hamburger Dropdown Menu */}
