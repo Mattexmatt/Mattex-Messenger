@@ -12,10 +12,14 @@ import { apiRequest } from "@/utils/api";
 import THEMES, { ThemeName } from "@/constants/colors";
 import * as Haptics from "expo-haptics";
 
-const THEME_OPTIONS: { key: ThemeName; label: string; colors: string[] }[] = [
-  { key: "midnight", label: "Midnight Hacker", colors: ["#0D0D0D", "#00FF41", "#141414"] },
-  { key: "skyblue", label: "Sky Blue", colors: ["#F0F7FF", "#007AFF", "#FFFFFF"] },
-  { key: "classic", label: "Classic Mattex", colors: ["#0A0A1A", "#6C5CE7", "#1A1A2E"] },
+const THEME_OPTIONS: { key: ThemeName; label: string; emoji: string; colors: string[]; desc: string }[] = [
+  { key: "midnight", label: "Midnight Hacker", emoji: "💀", colors: ["#080C08", "#00CC44", "#0F1A0F"], desc: "Dark green terminal" },
+  { key: "synthwave", label: "Synthwave", emoji: "🌆", colors: ["#0D0015", "#FF2D78", "#3D0055"], desc: "Neon retro 80s vibes" },
+  { key: "cyberpunk", label: "Cyberpunk", emoji: "⚡", colors: ["#0A0A0F", "#F5E642", "#00FFFF"], desc: "Yellow & cyan neon city" },
+  { key: "ocean", label: "Deep Ocean", emoji: "🌊", colors: ["#020B18", "#00D4FF", "#00FFCC"], desc: "Bioluminescent depths" },
+  { key: "volcanic", label: "Volcanic", emoji: "🌋", colors: ["#0C0500", "#FF6B00", "#FF9944"], desc: "Molten fire & ash" },
+  { key: "galaxy", label: "Galaxy", emoji: "🌌", colors: ["#05020F", "#8B5CF6", "#FFD700"], desc: "Cosmic purple & gold" },
+  { key: "arctic", label: "Arctic", emoji: "❄️", colors: ["#030E1A", "#4FC3F7", "#B3E5FC"], desc: "Ice-cold crystalline" },
 ];
 
 export default function ProfileScreen() {
@@ -227,11 +231,15 @@ export default function ProfileScreen() {
                 }]}
                 onPress={() => { setTheme(opt.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTheme(false); }}
               >
+                <Text style={{ fontSize: 24 }}>{opt.emoji}</Text>
                 <View style={s.themeSwatches}>
                   {opt.colors.map((c, i) => <View key={i} style={[s.swatch, { backgroundColor: c }]} />)}
                 </View>
-                <Text style={[s.themeLabel, { color: theme.text }]}>{opt.label}</Text>
-                {themeName === opt.key && <Feather name="check" size={20} color={theme.primary} />}
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.themeLabel, { color: theme.text, flex: 0, marginBottom: 2 }]}>{opt.label}</Text>
+                  <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text>
+                </View>
+                {themeName === opt.key && <Feather name="check-circle" size={20} color={theme.primary} />}
               </Pressable>
             ))}
           </View>

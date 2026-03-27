@@ -9,13 +9,13 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  themeName: "classic",
-  theme: THEMES.classic,
+  themeName: "midnight",
+  theme: THEMES.midnight,
   setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeName, setThemeName] = useState<ThemeName>("classic");
+  const [themeName, setThemeName] = useState<ThemeName>("midnight");
 
   useEffect(() => {
     AsyncStorage.getItem("mchat_theme").then((saved) => {
