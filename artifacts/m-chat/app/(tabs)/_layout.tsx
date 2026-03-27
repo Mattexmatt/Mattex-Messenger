@@ -24,8 +24,8 @@ function NativeTabLayout() {
         <Label>Podcasts</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
-        <Label>Settings</Label>
+        <Icon sf={{ default: "dot.radiowaves.left.and.right", selected: "dot.radiowaves.left.and.right" }} />
+        <Label>Updates</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -52,11 +52,7 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={theme.isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={100} tint={theme.isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.tabBar }]} />
           ) : null,
@@ -67,11 +63,7 @@ function ClassicTabLayout() {
         options={{
           title: "Chats",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="message" tintColor={color} size={24} />
-            ) : (
-              <Feather name="message-circle" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="message" tintColor={color} size={24} /> : <Feather name="message-circle" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -79,11 +71,7 @@ function ClassicTabLayout() {
         options={{
           title: "Memes",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="photo" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="images-outline" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="photo" tintColor={color} size={24} /> : <Ionicons name="images-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -91,23 +79,15 @@ function ClassicTabLayout() {
         options={{
           title: "Podcasts",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="headphones" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="headset-outline" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="headphones" tintColor={color} size={24} /> : <Ionicons name="headset-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Settings",
+          title: "Updates",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="gearshape" tintColor={color} size={24} />
-            ) : (
-              <Feather name="settings" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="dot.radiowaves.left.and.right" tintColor={color} size={24} /> : <Ionicons name="radio-outline" size={22} color={color} />,
         }}
       />
     </Tabs>

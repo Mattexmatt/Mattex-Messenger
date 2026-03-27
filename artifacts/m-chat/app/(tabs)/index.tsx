@@ -94,7 +94,7 @@ export default function ChatsScreen() {
     closeMenu();
     setTimeout(() => {
       if (action === "profile") router.push("/my-profile");
-      else if (action === "settings") router.push("/(tabs)/profile");
+      else if (action === "settings") router.push("/settings");
       else if (action === "newchat") searchRef.current?.focus();
     }, 150);
   };
