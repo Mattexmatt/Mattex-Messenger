@@ -143,18 +143,6 @@ export default function ChatsScreen() {
         {/* Title Row */}
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
           <Text style={{ flex: 1, fontSize: 26, fontFamily: "Inter_700Bold", color: theme.text }}>Chats</Text>
-          {/* Compose button */}
-          <Pressable
-            style={{
-              width: 40, height: 40, borderRadius: 12,
-              backgroundColor: `${theme.primary}22`,
-              alignItems: "center", justifyContent: "center",
-              marginRight: 10,
-            }}
-            onPress={() => searchRef.current?.focus()}
-          >
-            <Feather name="edit-2" size={17} color={theme.primary} />
-          </Pressable>
           {/* Hamburger menu */}
           <Pressable
             style={{
@@ -323,6 +311,27 @@ export default function ChatsScreen() {
           }
         />
       )}
+
+      {/* Floating + button for new chat */}
+      <Pressable
+        style={({ pressed }) => ({
+          position: "absolute",
+          bottom: insets.bottom + 90,
+          right: 20,
+          width: 56, height: 56, borderRadius: 28,
+          backgroundColor: theme.primary,
+          alignItems: "center", justifyContent: "center",
+          shadowColor: theme.primary,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.5,
+          shadowRadius: 12,
+          elevation: 10,
+          opacity: pressed ? 0.85 : 1,
+        })}
+        onPress={() => searchRef.current?.focus()}
+      >
+        <Feather name="plus" size={26} color={theme.isDark ? "#000" : "#fff"} />
+      </Pressable>
 
       {/* Hamburger Dropdown Menu */}
       {menuOpen && (
