@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View, Text, Pressable, ScrollView, TextInput,
   Modal, ActivityIndicator, Alert, Platform, Image
@@ -9,57 +9,16 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
-import * as Haptics from "expo-haptics";
-
-const STATUS_PRESETS = [
-  { emoji: "🟢", label: "Available" },
-  { emoji: "🔴", label: "Busy" },
-  { emoji: "💼", label: "At work" },
-  { emoji: "🎓", label: "In a meeting" },
-  { emoji: "🏋️", label: "At the gym" },
-  { emoji: "😴", label: "Sleeping" },
-  { emoji: "🎮", label: "Gaming" },
-  { emoji: "✈️", label: "Travelling" },
-  { emoji: "🔇", label: "Do not disturb" },
-];
 
 export default function MyProfileScreen() {
   const { theme } = useTheme();
   const { user, updateUser } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [status, setStatus] = useState(user?.status ?? "🟢 Available");
-  const [showStatusPicker, setShowStatusPicker] = useState(false);
-  const [customStatus, setCustomStatus] = useState("");
   const [showEditName, setShowEditName] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? "");
   const [saving, setSaving] = useState(false);
-  const [savingStatus, setSavingStatus] = useState(false);
-  const [showCustom, setShowCustom] = useState(false);
-
-  useEffect(() => {
-    if (user?.status) setStatus(user.status);
-  }, [user?.status]);
-
-  const applyStatus = async (val: string) => {
-    setSavingStatus(true);
-    try {
-      const updated = await apiRequest("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({ status: val }),
-      });
-      updateUser(updated);
-      setStatus(val);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setShowStatusPicker(false);
-      setShowCustom(false);
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally {
-      setSavingStatus(false);
-    }
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -72,7 +31,9 @@ export default function MyProfileScreen() {
       setShowEditName(false);
     } catch (e: any) {
       Alert.alert("Error", e.message);
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!user) return null;
@@ -115,7 +76,6 @@ export default function MyProfileScreen() {
         {/* Avatar Section */}
         <View style={{ alignItems: "center", paddingVertical: 36, backgroundColor: theme.gradientTop }}>
           <Pressable
-            style={{ position: "relative" }}
             onPress={() => { setDisplayName(user.displayName); setAvatarUrl(user.avatarUrl ?? ""); setShowEditName(true); }}
           >
             {user.avatarUrl ? (
@@ -147,28 +107,6 @@ export default function MyProfileScreen() {
               <Text style={{ color: bg, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Owner · Allan Matt Tech</Text>
             </View>
           )}
-        </View>
-
-        {/* Status */}
-        <View style={{ marginTop: 24, marginHorizontal: 16 }}>
-          <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_600SemiBold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, marginLeft: 4 }}>Status</Text>
-          <Pressable
-            style={{
-              flexDirection: "row", alignItems: "center", gap: 14,
-              backgroundColor: surf, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16,
-              borderWidth: 1, borderColor: border,
-            }}
-            onPress={() => setShowStatusPicker(true)}
-          >
-            <Text style={{ fontSize: 22 }}>{status.split(" ")[0]}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_500Medium", color: txt }}>
-                {status.split(" ").slice(1).join(" ") || status}
-              </Text>
-              <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 3 }}>Tap to change your status</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={txtMut} />
-          </Pressable>
         </View>
 
         {/* Info */}
@@ -208,72 +146,16 @@ export default function MyProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Status Picker Modal */}
-      <Modal visible={showStatusPicker} animationType="slide" transparent onRequestClose={() => setShowStatusPicker(false)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Set Status</Text>
-
-            {showCustom ? (
-              <View>
-                <TextInput
-                  style={{
-                    backgroundColor: theme.inputBg, borderRadius: 12,
-                    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: txt,
-                    borderWidth: 1, borderColor: border, fontFamily: "Inter_400Regular", marginBottom: 14,
-                  }}
-                  placeholder="Type a custom status..."
-                  placeholderTextColor={txtMut}
-                  value={customStatus}
-                  onChangeText={setCustomStatus}
-                  maxLength={60}
-                  autoFocus
-                />
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Pressable style={{ flex: 1, backgroundColor: `${primary}22`, borderRadius: 12, paddingVertical: 14, alignItems: "center" }} onPress={() => setShowCustom(false)}>
-                    <Text style={{ color: primary, fontFamily: "Inter_600SemiBold" }}>Back</Text>
-                  </Pressable>
-                  <Pressable style={{ flex: 1, backgroundColor: primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" }} onPress={() => customStatus.trim() && applyStatus(`✏️ ${customStatus.trim()}`)}>
-                    <Text style={{ color: bg, fontFamily: "Inter_600SemiBold" }}>Set</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {STATUS_PRESETS.map((s) => (
-                  <Pressable
-                    key={s.label}
-                    style={{
-                      flexDirection: "row", alignItems: "center", gap: 14,
-                      padding: 14, borderRadius: 12, marginBottom: 8,
-                      backgroundColor: status === `${s.emoji} ${s.label}` ? `${primary}22` : theme.surfaceElevated,
-                      borderWidth: 1, borderColor: status === `${s.emoji} ${s.label}` ? primary : border,
-                    }}
-                    onPress={() => applyStatus(`${s.emoji} ${s.label}`)}
-                  >
-                    <Text style={{ fontSize: 22 }}>{s.emoji}</Text>
-                    <Text style={{ flex: 1, fontSize: 16, color: txt, fontFamily: "Inter_400Regular" }}>{s.label}</Text>
-                    {status === `${s.emoji} ${s.label}` && <Feather name="check" size={18} color={primary} />}
-                  </Pressable>
-                ))}
-                <Pressable
-                  style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 12, backgroundColor: theme.surfaceElevated, borderWidth: 1, borderColor: border }}
-                  onPress={() => setShowCustom(true)}
-                >
-                  <Text style={{ fontSize: 22 }}>✏️</Text>
-                  <Text style={{ flex: 1, fontSize: 16, color: primary, fontFamily: "Inter_500Medium" }}>Custom status...</Text>
-                </Pressable>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Name Modal */}
+      {/* Edit Profile Modal */}
       <Modal visible={showEditName} animationType="slide" transparent onRequestClose={() => setShowEditName(false)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
+          onPress={() => setShowEditName(false)}
+        >
+          <View
+            style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
             <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 20 }}>Edit Profile</Text>
             <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_500Medium", marginBottom: 8 }}>Display Name</Text>
@@ -301,7 +183,7 @@ export default function MyProfileScreen() {
               {saving ? <ActivityIndicator color={bg} /> : <Text style={{ color: bg, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Save Changes</Text>}
             </Pressable>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

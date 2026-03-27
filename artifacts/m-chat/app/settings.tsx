@@ -241,142 +241,130 @@ export default function SettingsScreen() {
       {/* Sound picker modal */}
       <Modal visible={showSound} animationType="slide" transparent onRequestClose={() => setShowSound(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowSound(false)}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 6 }}>Notification Sound</Text>
-              <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginBottom: 20 }}>Tap Preview to hear how each sound sounds</Text>
-              {SOUND_OPTIONS.map((opt) => (
-                <View key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.soundType === opt.key ? `${primary}18` : theme.surfaceElevated, borderColor: settings.soundType === opt.key ? primary : border }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                    <Feather name={opt.icon as any} size={18} color={primary} />
-                  </View>
-                  <Pressable style={{ flex: 1 }} onPress={() => { saveSetting("soundType", opt.key); }}>
-                    <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text>
-                    <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text>
-                  </Pressable>
-                  <Pressable style={{ backgroundColor: `${primary}22`, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginRight: 10 }} onPress={() => previewSound(opt.key)}>
-                    <Text style={{ color: primary, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Preview</Text>
-                  </Pressable>
-                  {settings.soundType === opt.key && <Feather name="check-circle" size={20} color={primary} />}
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 6 }}>Notification Sound</Text>
+            <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginBottom: 20 }}>Tap Preview to hear how each sound sounds</Text>
+            {SOUND_OPTIONS.map((opt) => (
+              <View key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.soundType === opt.key ? `${primary}18` : theme.surfaceElevated, borderColor: settings.soundType === opt.key ? primary : border }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                  <Feather name={opt.icon as any} size={18} color={primary} />
                 </View>
-              ))}
-            </View>
-          </Pressable>
+                <Pressable style={{ flex: 1 }} onPress={() => { saveSetting("soundType", opt.key); }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text>
+                </Pressable>
+                <Pressable style={{ backgroundColor: `${primary}22`, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginRight: 10 }} onPress={() => previewSound(opt.key)}>
+                  <Text style={{ color: primary, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Preview</Text>
+                </Pressable>
+                {settings.soundType === opt.key && <Feather name="check-circle" size={20} color={primary} />}
+              </View>
+            ))}
+          </View>
         </Pressable>
       </Modal>
 
       {/* Theme modal */}
       <Modal visible={showTheme} animationType="slide" transparent onRequestClose={() => setShowTheme(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowTheme(false)}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "85%" }}>
-              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Choose Theme</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {THEME_OPTIONS.map((opt) => (
-                  <Pressable key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 12, backgroundColor: themeName === opt.key ? `${primary}22` : theme.surfaceElevated, borderColor: themeName === opt.key ? primary : border }}
-                    onPress={() => { setTheme(opt.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTheme(false); }}>
-                    <Text style={{ fontSize: 22 }}>{opt.emoji}</Text>
-                    <View style={{ flexDirection: "row", gap: 4 }}>{opt.colors.map((c, i) => <View key={i} style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: c }} />)}</View>
-                    <View style={{ flex: 1 }}><Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text><Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text></View>
-                    {themeName === opt.key && <Feather name="check-circle" size={20} color={primary} />}
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          </Pressable>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "85%" }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Choose Theme</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {THEME_OPTIONS.map((opt) => (
+                <Pressable key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 12, backgroundColor: themeName === opt.key ? `${primary}22` : theme.surfaceElevated, borderColor: themeName === opt.key ? primary : border }}
+                  onPress={() => { setTheme(opt.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTheme(false); }}>
+                  <Text style={{ fontSize: 22 }}>{opt.emoji}</Text>
+                  <View style={{ flexDirection: "row", gap: 4 }}>{opt.colors.map((c, i) => <View key={i} style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: c }} />)}</View>
+                  <View style={{ flex: 1 }}><Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text><Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text></View>
+                  {themeName === opt.key && <Feather name="check-circle" size={20} color={primary} />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
         </Pressable>
       </Modal>
 
       {/* Last Seen modal */}
       <Modal visible={showLastSeen} animationType="slide" transparent onRequestClose={() => setShowLastSeen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowLastSeen(false)}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Last Seen</Text>
-              {(["everyone", "nobody"] as const).map(opt => (
-                <Pressable key={opt} style={{ flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.lastSeen === opt ? `${primary}22` : theme.surfaceElevated, borderColor: settings.lastSeen === opt ? primary : border }}
-                  onPress={() => { saveSetting("lastSeen", opt); setShowLastSeen(false); }}>
-                  <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: txt }}>{opt === "everyone" ? "Everyone" : "Nobody"}</Text>
-                  {settings.lastSeen === opt && <Feather name="check" size={20} color={primary} />}
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Last Seen</Text>
+            {(["everyone", "nobody"] as const).map(opt => (
+              <Pressable key={opt} style={{ flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.lastSeen === opt ? `${primary}22` : theme.surfaceElevated, borderColor: settings.lastSeen === opt ? primary : border }}
+                onPress={() => { saveSetting("lastSeen", opt); setShowLastSeen(false); }}>
+                <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: txt }}>{opt === "everyone" ? "Everyone" : "Nobody"}</Text>
+                {settings.lastSeen === opt && <Feather name="check" size={20} color={primary} />}
+              </Pressable>
+            ))}
+          </View>
         </Pressable>
       </Modal>
 
       {/* Font Size modal */}
       <Modal visible={showFontSize} animationType="slide" transparent onRequestClose={() => setShowFontSize(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowFontSize(false)}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Font Size</Text>
-              {(["small", "medium", "large"] as const).map(opt => (
-                <Pressable key={opt} style={{ flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.fontSize === opt ? `${primary}22` : theme.surfaceElevated, borderColor: settings.fontSize === opt ? primary : border }}
-                  onPress={() => { saveSetting("fontSize", opt); setShowFontSize(false); }}>
-                  <Text style={{ flex: 1, fontFamily: "Inter_400Regular", color: txt, textTransform: "capitalize", fontSize: opt === "small" ? 13 : opt === "medium" ? 16 : 20 }}>{opt.charAt(0).toUpperCase() + opt.slice(1)} — Sample text</Text>
-                  {settings.fontSize === opt && <Feather name="check" size={20} color={primary} />}
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Font Size</Text>
+            {(["small", "medium", "large"] as const).map(opt => (
+              <Pressable key={opt} style={{ flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.fontSize === opt ? `${primary}22` : theme.surfaceElevated, borderColor: settings.fontSize === opt ? primary : border }}
+                onPress={() => { saveSetting("fontSize", opt); setShowFontSize(false); }}>
+                <Text style={{ flex: 1, fontFamily: "Inter_400Regular", color: txt, textTransform: "capitalize", fontSize: opt === "small" ? 13 : opt === "medium" ? 16 : 20 }}>{opt.charAt(0).toUpperCase() + opt.slice(1)} — Sample text</Text>
+                {settings.fontSize === opt && <Feather name="check" size={20} color={primary} />}
+              </Pressable>
+            ))}
+          </View>
         </Pressable>
       </Modal>
 
       {/* Bubble Style modal */}
       <Modal visible={showBubbleStyle} animationType="slide" transparent onRequestClose={() => setShowBubbleStyle(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowBubbleStyle(false)}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Bubble Style</Text>
-              {([
-                { key: "rounded", label: "Rounded", desc: "Modern pill-shaped bubbles", radius: 20 },
-                { key: "sharp", label: "Sharp", desc: "Clean square corners", radius: 6 },
-                { key: "balloon", label: "Balloon", desc: "Extra round & playful", radius: 28 },
-              ] as const).map(opt => (
-                <Pressable key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 14, backgroundColor: settings.bubbleStyle === opt.key ? `${primary}22` : theme.surfaceElevated, borderColor: settings.bubbleStyle === opt.key ? primary : border }}
-                  onPress={() => { saveSetting("bubbleStyle", opt.key); setShowBubbleStyle(false); }}>
-                  <View style={{ width: 52, height: 28, borderRadius: opt.radius, backgroundColor: primary, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: bg, fontSize: 11, fontFamily: "Inter_600SemiBold" }}>Hi!</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text>
-                    <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text>
-                  </View>
-                  {settings.bubbleStyle === opt.key && <Feather name="check-circle" size={20} color={primary} />}
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Bubble Style</Text>
+            {([
+              { key: "rounded", label: "Rounded", desc: "Modern pill-shaped bubbles", radius: 20 },
+              { key: "sharp", label: "Sharp", desc: "Clean square corners", radius: 6 },
+              { key: "balloon", label: "Balloon", desc: "Extra round & playful", radius: 28 },
+            ] as const).map(opt => (
+              <Pressable key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 14, backgroundColor: settings.bubbleStyle === opt.key ? `${primary}22` : theme.surfaceElevated, borderColor: settings.bubbleStyle === opt.key ? primary : border }}
+                onPress={() => { saveSetting("bubbleStyle", opt.key); setShowBubbleStyle(false); }}>
+                <View style={{ width: 52, height: 28, borderRadius: opt.radius, backgroundColor: primary, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: bg, fontSize: 11, fontFamily: "Inter_600SemiBold" }}>Hi!</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text>
+                </View>
+                {settings.bubbleStyle === opt.key && <Feather name="check-circle" size={20} color={primary} />}
+              </Pressable>
+            ))}
+          </View>
         </Pressable>
       </Modal>
 
       {/* About modal */}
       <Modal visible={showAbout} animationType="slide" transparent onRequestClose={() => setShowAbout(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowAbout(false)}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: `${primary}22`, borderWidth: 2, borderColor: primary, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-                  <Feather name="message-circle" size={34} color={primary} />
-                </View>
-                <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: txt }}>M Chat</Text>
-                <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 4 }}>Version 1.0.0 · Mattex Chat</Text>
-                <View style={{ marginTop: 16, padding: 16, backgroundColor: theme.surfaceElevated, borderRadius: 14, width: "100%", borderWidth: 1, borderColor: border }}>
-                  <Text style={{ color: txt, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 }}>Built with care by{"\n"}<Text style={{ fontFamily: "Inter_700Bold", color: primary }}>Allan Matt Tech</Text>{"\n\n"}Real-time messaging · Voice notes · Video calls{"\n"}Podcast Room · Meme Community · 7 Themes</Text>
-                </View>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <View style={{ alignItems: "center", paddingVertical: 16 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: `${primary}22`, borderWidth: 2, borderColor: primary, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                <Feather name="message-circle" size={34} color={primary} />
               </View>
-              <Pressable style={{ backgroundColor: primary, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", marginTop: 8 }} onPress={() => setShowAbout(false)}>
-                <Text style={{ color: bg, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Close</Text>
-              </Pressable>
+              <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: txt }}>M Chat</Text>
+              <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 4 }}>Version 1.0.0 · Mattex Chat</Text>
+              <View style={{ marginTop: 16, padding: 16, backgroundColor: theme.surfaceElevated, borderRadius: 14, width: "100%", borderWidth: 1, borderColor: border }}>
+                <Text style={{ color: txt, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 }}>Built with care by{"\n"}<Text style={{ fontFamily: "Inter_700Bold", color: primary }}>Allan Matt Tech</Text>{"\n\n"}Real-time messaging · Voice notes · Video calls{"\n"}Podcast Room · Meme Community · 7 Themes</Text>
+              </View>
             </View>
-          </Pressable>
+            <Pressable style={{ backgroundColor: primary, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", marginTop: 8 }} onPress={() => setShowAbout(false)}>
+              <Text style={{ color: bg, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Close</Text>
+            </Pressable>
+          </View>
         </Pressable>
       </Modal>
     </View>

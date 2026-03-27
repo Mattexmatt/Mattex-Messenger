@@ -311,9 +311,7 @@ function AddStatusModal({ visible, onClose, onAdded, theme, insets }: {
       {/* Tapping the dark overlay closes the modal */}
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={handleClose}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          {/* Stop the press from propagating through the sheet */}
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: surf, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
               <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
 
               {/* ── STEP: PICK ── */}
@@ -471,7 +469,6 @@ function AddStatusModal({ visible, onClose, onAdded, theme, insets }: {
                 </>
               )}
             </View>
-          </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
     </Modal>
