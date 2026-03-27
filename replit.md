@@ -56,13 +56,16 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - Username-based auth (JWT, no phone number)
 - Real-time 1-on-1 messaging with emoji picker and voice notes
 - 1-on-1 video call UI
-- 3 chat themes: Midnight Hacker (dark green), Sky Blue, Classic Mattex (purple, default)
+- 7 chat themes (Midnight Hacker, Synthwave, Cyberpunk, Ocean, Volcanic, Galaxy, Arctic)
 - Podcast Room with owner-only upload
 - Meme Community with likes
-- Scannable via QR code on Expo Go
+- Instagram/WhatsApp-style image/video Stories (Updates tab): story ring circles, fullscreen viewer with progress bar, 24h expiry
+- Telegram-style Settings screen (all sections)
+- Hamburger menu on Chats with quick actions
+- My Profile screen
 
 ### DB Schema
-Tables: `users`, `conversations`, `messages`, `podcasts`, `memes`, `meme_likes`
+Tables: `users`, `conversations`, `messages`, `podcasts`, `memes`, `meme_likes`, `statuses`
 JWT secret: `JWT_SECRET` env var (default: `mchat-secret-key-2024`)
 
 ### Mobile App Structure (`artifacts/m-chat`)
@@ -83,6 +86,7 @@ JWT secret: `JWT_SECRET` env var (default: `mchat-secret-key-2024`)
 - `messages.ts` — GET /messages/:convId, POST /messages
 - `podcasts.ts` — GET /podcasts, POST /podcasts (owner only)
 - `memes.ts` — GET /memes, POST /memes, POST /memes/:id/like, DELETE /memes/:id/like
+- `statuses.ts` — GET /statuses, GET /statuses/mine, POST /statuses, DELETE /statuses/:id (image/video stories, 24h expiry)
 
 **Important**: Use `import { z } from "zod"` (not `zod/v4`) — workspace uses zod v3.
 
