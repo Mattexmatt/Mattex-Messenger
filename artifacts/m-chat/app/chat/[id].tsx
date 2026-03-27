@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   View, Text, FlatList, Pressable, TextInput,
   Image, ActivityIndicator, Platform, Alert, ScrollView,
-  Animated, PanResponder, Modal
+  Animated, PanResponder, Modal, Clipboard
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +22,8 @@ interface Message {
   senderId: number;
   content: string;
   type: "text" | "audio" | "image";
+  isDeleted?: number;
+  deletedForIds?: string;
   createdAt: string;
   sender?: { id: number; displayName: string; avatarUrl?: string | null };
 }
@@ -193,60 +195,93 @@ function SwipeableRow({ onReply, children }: { onReply: () => void; children: Re
 
 // ─── Reaction picker modal ─────────────────────────────────────────────────────
 function ReactionPicker({
-  message, isOwn, onSelect, onClose, theme,
+  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, theme,
 }: {
-  message: Message; isOwn: boolean; onSelect: (emoji: string) => void; onClose: () => void; theme: any;
+  message: Message; isOwn: boolean;
+  onSelect: (emoji: string) => void; onClose: () => void;
+  onReply: () => void; onDeleteForMe: () => void; onDeleteForAll: () => void;
+  theme: any;
 }) {
+  const mainContent = message.content.startsWith("↩ \"")
+    ? message.content.split("\n").slice(1).join("\n")
+    : message.content;
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} onPress={onClose}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Pressable onPress={e => e.stopPropagation()}>
-            <View style={{ backgroundColor: theme.surface, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 18, borderWidth: 1, borderColor: theme.border, alignItems: "center", gap: 12 }}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
+          <Pressable onStartShouldSetResponder={() => true}>
+            <View style={{ backgroundColor: theme.surface, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderColor: theme.border, alignItems: "center", gap: 12, width: 340 }}>
               {/* Reaction emojis */}
-              <View style={{ flexDirection: "row", gap: 6 }}>
+              <View style={{ flexDirection: "row", gap: 5 }}>
                 {QUICK_REACTIONS.map(emoji => (
                   <Pressable
                     key={emoji}
                     onPress={() => { onSelect(emoji); onClose(); }}
                     style={({ pressed }) => ({
-                      width: 46, height: 46, borderRadius: 23,
+                      width: 42, height: 42, borderRadius: 21,
                       backgroundColor: pressed ? `${theme.primary}22` : theme.surfaceElevated,
                       alignItems: "center", justifyContent: "center",
                       borderWidth: 1, borderColor: theme.border,
                     })}
                   >
-                    <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                    <Text style={{ fontSize: 22 }}>{emoji}</Text>
                   </Pressable>
                 ))}
               </View>
 
-              {/* Replied-to message preview */}
-              <View style={{ backgroundColor: theme.surfaceElevated, borderRadius: 12, padding: 12, width: "100%", borderWidth: 1, borderColor: theme.border, borderLeftWidth: 3, borderLeftColor: theme.primary }}>
-                <Text style={{ fontSize: 11, color: theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 4 }}>
+              {/* Message preview */}
+              <View style={{ backgroundColor: theme.surfaceElevated, borderRadius: 12, padding: 10, width: "100%", borderWidth: 1, borderColor: theme.border, borderLeftWidth: 3, borderLeftColor: theme.primary }}>
+                <Text style={{ fontSize: 11, color: theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 3 }}>
                   {isOwn ? "You" : message.sender?.displayName ?? "Them"}
                 </Text>
                 <Text style={{ fontSize: 13, color: theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={2}>
-                  {message.content}
+                  {mainContent}
                 </Text>
               </View>
 
-              {/* Actions */}
-              <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+              {/* Action buttons — row 1 */}
+              <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
                 <Pressable
-                  style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: `${theme.primary}18`, borderRadius: 12, paddingVertical: 10, borderWidth: 1, borderColor: `${theme.primary}33` }}
-                  onPress={onClose}
+                  style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? `${theme.primary}30` : `${theme.primary}18`, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: `${theme.primary}33` })}
+                  onPress={() => { onReply(); onClose(); }}
                 >
                   <Feather name="corner-up-left" size={15} color={theme.primary} />
                   <Text style={{ color: theme.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Reply</Text>
                 </Pressable>
                 <Pressable
-                  style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: theme.surfaceElevated, borderRadius: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.border }}
-                  onPress={onClose}
+                  style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? theme.border : theme.surfaceElevated, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: theme.border })}
+                  onPress={() => { Clipboard.setString(mainContent); onClose(); }}
                 >
                   <Feather name="copy" size={15} color={theme.textSecondary} />
                   <Text style={{ color: theme.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Copy</Text>
                 </Pressable>
+              </View>
+
+              {/* Action buttons — row 2: delete */}
+              <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
+                <Pressable
+                  style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? "#ff444422" : "#ff444418", borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: "#ff444433" })}
+                  onPress={() => { onDeleteForMe(); onClose(); }}
+                >
+                  <Feather name="eye-off" size={15} color="#ff4444" />
+                  <Text style={{ color: "#ff4444", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Delete for me</Text>
+                </Pressable>
+                {isOwn && (
+                  <Pressable
+                    style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? "#ff444422" : "#ff444418", borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: "#ff444433" })}
+                    onPress={() => {
+                      onClose();
+                      Alert.alert("Delete for everyone?", "This message will be removed for all participants.", [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", style: "destructive", onPress: onDeleteForAll },
+                      ]);
+                    }}
+                  >
+                    <Feather name="trash-2" size={15} color="#ff4444" />
+                    <Text style={{ color: "#ff4444", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Delete for all</Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           </Pressable>
@@ -410,17 +445,32 @@ export default function ChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const deleteMsg = useCallback(async (msgId: number, scope: "me" | "all") => {
+    try {
+      await apiRequest(`/conversations/${id}/messages/${msgId}?scope=${scope}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      if (appSettings.vibrationEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } catch {
+      Alert.alert("Error", "Could not delete message");
+    }
+  }, [id, queryClient, appSettings]);
+
   const r = getBubbleRadius(appSettings.bubbleStyle);
   const fs = getFontSize(appSettings.fontSize);
 
   const renderMsg = ({ item, index }: { item: Message; index: number }) => {
     const isOwn = item.senderId === user?.id;
+    // Hide messages "deleted for me" for the current user
+    const deletedForMe = (item.deletedForIds ?? "").split(",").filter(Boolean).includes(String(user?.id));
+    if (deletedForMe) return null;
+
     const allMessages = messages ?? [];
     const nextMsg = allMessages[index - 1];
     const prevMsg = allMessages[index + 1];
     const isFirst = !prevMsg || prevMsg.senderId !== item.senderId;
     const isLast = !nextMsg || nextMsg.senderId !== item.senderId;
     const msgReactions = reactions[item.id] ?? [];
+    const isDeletedForAll = item.isDeleted === 1;
 
     const ownTopLeft = r;
     const ownTopRight = isFirst ? r : 4;
@@ -464,44 +514,62 @@ export default function ChatScreen() {
 
             {/* Bubble — long press opens reaction picker */}
             <Pressable
-              onLongPress={() => { setReactionPickerMsg(item); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+              onLongPress={() => {
+                if (!isDeletedForAll) {
+                  setReactionPickerMsg(item);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
+              }}
               delayLongPress={320}
             >
               <View style={{
-                backgroundColor: isOwn ? theme.bubbleOwn : theme.bubble,
+                backgroundColor: isDeletedForAll ? "transparent" : (isOwn ? theme.bubbleOwn : theme.bubble),
                 borderTopLeftRadius: isOwn ? ownTopLeft : othTopLeft,
                 borderTopRightRadius: isOwn ? ownTopRight : othTopRight,
                 borderBottomLeftRadius: isOwn ? ownBotLeft : othBotLeft,
                 borderBottomRightRadius: isOwn ? ownBotRight : othBotRight,
                 paddingHorizontal: 13, paddingVertical: 8,
-                borderWidth: isOwn ? 0 : 1, borderColor: theme.border,
+                borderWidth: 1,
+                borderColor: isDeletedForAll ? theme.border : (isOwn ? "transparent" : theme.border),
+                borderStyle: isDeletedForAll ? "dashed" : "solid",
               }}>
-                {/* Reply context strip */}
-                {isReplyMsg && replyLine && (
-                  <View style={{ backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : `${theme.primary}18`, borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: isOwn ? "rgba(255,255,255,0.6)" : theme.primary }}>
-                    <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.75)" : theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 2 }}>↩ Replied</Text>
-                    <Text style={{ fontSize: 12, color: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{replyLine}</Text>
-                  </View>
-                )}
-
-                {item.type === "audio" ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="mic" size={14} color={isOwn ? "#fff" : theme.text} />
-                    </View>
-                    <View style={{ gap: 3 }}>
-                      <View style={{ flexDirection: "row", gap: 2, alignItems: "center" }}>
-                        {[3, 5, 8, 6, 4, 7, 5, 3].map((h, i) => (
-                          <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary }} />
-                        ))}
-                      </View>
-                      <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.6)" : theme.textMuted, fontFamily: "Inter_400Regular" }}>Voice note · 0:05</Text>
-                    </View>
+                {isDeletedForAll ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Feather name="slash" size={13} color={theme.textMuted} />
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", fontStyle: "italic", color: theme.textMuted }}>
+                      This message was deleted
+                    </Text>
                   </View>
                 ) : (
-                  <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? "#fff" : theme.text }}>
-                    {mainContent}
-                  </Text>
+                  <>
+                    {/* Reply context strip */}
+                    {isReplyMsg && replyLine && (
+                      <View style={{ backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : `${theme.primary}18`, borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: isOwn ? "rgba(255,255,255,0.6)" : theme.primary }}>
+                        <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.75)" : theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 2 }}>↩ Replied</Text>
+                        <Text style={{ fontSize: 12, color: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{replyLine}</Text>
+                      </View>
+                    )}
+
+                    {item.type === "audio" ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                          <Feather name="mic" size={14} color={isOwn ? "#fff" : theme.text} />
+                        </View>
+                        <View style={{ gap: 3 }}>
+                          <View style={{ flexDirection: "row", gap: 2, alignItems: "center" }}>
+                            {[3, 5, 8, 6, 4, 7, 5, 3].map((h, i) => (
+                              <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary }} />
+                            ))}
+                          </View>
+                          <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.6)" : theme.textMuted, fontFamily: "Inter_400Regular" }}>Voice note · 0:05</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? "#fff" : theme.text }}>
+                        {mainContent}
+                      </Text>
+                    )}
+                  </>
                 )}
               </View>
             </Pressable>
@@ -569,10 +637,16 @@ export default function ChatScreen() {
           </View>
         </View>
         <View style={{ flexDirection: "row", gap: 4 }}>
-          <Pressable style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }} onPress={() => router.push({ pathname: "/call/[id]", params: { id, name } })}>
+          <Pressable
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}
+            onPress={() => router.push({ pathname: "/call/[id]", params: { id, name, username, callType: "video" } })}
+          >
             <Feather name="video" size={18} color={theme.primary} />
           </Pressable>
-          <Pressable style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
+          <Pressable
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}
+            onPress={() => router.push({ pathname: "/call/[id]", params: { id, name, username, callType: "audio" } })}
+          >
             <Feather name="phone" size={18} color={theme.primary} />
           </Pressable>
           <Pressable style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
@@ -696,6 +770,9 @@ export default function ChatScreen() {
           isOwn={reactionPickerMsg.senderId === user?.id}
           onSelect={(emoji) => addReaction(reactionPickerMsg.id, emoji)}
           onClose={() => setReactionPickerMsg(null)}
+          onReply={() => { setReplyTo(reactionPickerMsg); inputRef.current?.focus(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+          onDeleteForMe={() => deleteMsg(reactionPickerMsg.id, "me")}
+          onDeleteForAll={() => deleteMsg(reactionPickerMsg.id, "all")}
           theme={theme}
         />
       )}

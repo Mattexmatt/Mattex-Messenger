@@ -117,6 +117,8 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     senderId: messagesTable.senderId,
     content: messagesTable.content,
     type: messagesTable.type,
+    isDeleted: messagesTable.isDeleted,
+    deletedForIds: messagesTable.deletedForIds,
     createdAt: messagesTable.createdAt,
     sender: {
       id: usersTable.id,
@@ -134,6 +136,29 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     .offset(offset);
 
   res.json(messages);
+});
+
+// Delete a message
+router.delete("/:conversationId/messages/:messageId", requireAuth, async (req: AuthRequest, res) => {
+  const messageId = parseInt(req.params.messageId);
+  const scope = (req.query.scope as string) ?? "me"; // "me" | "all"
+  const userId = req.userId!;
+
+  const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+
+  if (scope === "all") {
+    // Only the sender can delete for everyone
+    if (msg.senderId !== userId) { res.status(403).json({ error: "Only the sender can delete for everyone" }); return; }
+    await db.update(messagesTable).set({ isDeleted: 1, content: "" }).where(eq(messagesTable.id, messageId));
+    res.json({ success: true, scope: "all" });
+  } else {
+    // Delete for me: add userId to deletedForIds
+    const existing = (msg.deletedForIds ?? "").split(",").filter(Boolean);
+    if (!existing.includes(String(userId))) existing.push(String(userId));
+    await db.update(messagesTable).set({ deletedForIds: existing.join(",") }).where(eq(messagesTable.id, messageId));
+    res.json({ success: true, scope: "me" });
+  }
 });
 
 router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, res) => {
