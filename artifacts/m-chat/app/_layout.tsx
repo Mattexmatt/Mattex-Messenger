@@ -31,6 +31,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="call/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="my-profile" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from "react";
 import {
-  View, Text, Pressable, StyleSheet, Modal, TextInput,
+  View, Text, Pressable, Modal, TextInput,
   ScrollView, ActivityIndicator, Alert, Platform, Image, Switch
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { apiRequest } from "@/utils/api";
 import THEMES, { ThemeName } from "@/constants/colors";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -49,19 +48,15 @@ const DEFAULT_SETTINGS: Settings = {
   fontSize: "medium",
 };
 
-export default function ProfileScreen() {
+export default function SettingsScreen() {
   const { theme, themeName, setTheme } = useTheme();
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [showEdit, setShowEdit] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLastSeen, setShowLastSeen] = useState(false);
   const [showFontSize, setShowFontSize] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? "");
-  const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
@@ -75,20 +70,6 @@ export default function ProfileScreen() {
     setSettings(updated);
     await AsyncStorage.setItem("mchat_settings", JSON.stringify(updated));
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const handleSaveProfile = async () => {
-    setSaving(true);
-    try {
-      const updated = await apiRequest("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({ displayName: displayName.trim(), avatarUrl: avatarUrl.trim() || null }),
-      });
-      updateUser(updated);
-      setShowEdit(false);
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally { setSaving(false); }
   };
 
   const handleLogout = () => {
@@ -138,7 +119,6 @@ export default function ProfileScreen() {
           opacity: pressed && onPress ? 0.7 : 1,
         })}
         onPress={onPress}
-        disabled={!onPress && !right}
       >
         <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: `${iconColor}22`, alignItems: "center", justifyContent: "center" }}>
           <Feather name={icon as any} size={17} color={iconColor} />
@@ -171,54 +151,47 @@ export default function ProfileScreen() {
     </>
   );
 
-  if (!user) {
-    return (
-      <View style={{ flex: 1, backgroundColor: bg, alignItems: "center", justifyContent: "center", gap: 16 }}>
-        <Ionicons name="person-circle-outline" size={72} color={txtMut} />
-        <Text style={{ color: txt, fontSize: 20, fontFamily: "Inter_600SemiBold" }}>Not signed in</Text>
-        <Pressable style={{ backgroundColor: primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 }} onPress={() => router.push("/(auth)/login")}>
-          <Text style={{ color: bg, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Sign In</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
+      {/* Header */}
+      <View style={{
+        paddingTop: insets.top + (Platform.OS === "web" ? 72 : 16),
+        paddingHorizontal: 20, paddingBottom: 20,
+        backgroundColor: theme.gradientTop,
+      }}>
+        <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: txt }}>Settings</Text>
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
 
-        {/* Profile Header */}
-        <View style={{
-          paddingTop: insets.top + (Platform.OS === "web" ? 72 : 20),
-          paddingHorizontal: 20, paddingBottom: 24,
-          backgroundColor: theme.gradientTop, alignItems: "center",
-        }}>
-          <Pressable onPress={() => { setDisplayName(user.displayName); setAvatarUrl(user.avatarUrl ?? ""); setShowEdit(true); }}>
-            {user.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={{ width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: primary }} />
+        {/* My Profile Card */}
+        <View style={{ marginTop: 20, marginHorizontal: 16 }}>
+          <Pressable
+            style={({ pressed }) => ({
+              flexDirection: "row", alignItems: "center", gap: 14,
+              backgroundColor: surf, borderRadius: 16, padding: 16,
+              borderWidth: 1, borderColor: border,
+              opacity: pressed ? 0.8 : 1,
+            })}
+            onPress={() => router.push("/my-profile")}
+          >
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={{ width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: primary }} />
             ) : (
-              <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: `${primary}33`, borderWidth: 3, borderColor: primary, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 36, fontFamily: "Inter_700Bold", color: primary }}>{user.displayName[0].toUpperCase()}</Text>
+              <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: `${primary}22`, borderWidth: 2, borderColor: primary, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: primary }}>{user?.displayName[0].toUpperCase()}</Text>
               </View>
             )}
-            <View style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: primary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: theme.gradientTop }}>
-              <Feather name="camera" size={13} color={bg} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: txt }}>{user?.displayName}</Text>
+              <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 2 }}>@{user?.username}</Text>
+              {user?.isOwner && (
+                <Text style={{ fontSize: 12, color: primary, fontFamily: "Inter_600SemiBold", marginTop: 3 }}>Owner · Allan Matt Tech</Text>
+              )}
             </View>
+            <Feather name="chevron-right" size={18} color={txtMut} />
           </Pressable>
-          <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: txt, marginTop: 12 }}>{user.displayName}</Text>
-          <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 3 }}>@{user.username}</Text>
-          {user.isOwner && (
-            <View style={{ marginTop: 8, backgroundColor: primary, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10 }}>
-              <Text style={{ color: bg, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Owner · Allan Matt Tech</Text>
-            </View>
-          )}
         </View>
-
-        {/* Account */}
-        <Section title="Account">
-          <Row icon="edit-3" iconColor={primary} label="Edit Profile" onPress={() => { setDisplayName(user.displayName); setAvatarUrl(user.avatarUrl ?? ""); setShowEdit(true); }} />
-          <Row icon="at-sign" iconColor={accent} label="Username" right={<Text style={{ color: txtSec, fontFamily: "Inter_400Regular" }}>@{user.username}</Text>} sep={false} />
-        </Section>
 
         {/* Notifications */}
         <Section title="Notifications">
@@ -235,7 +208,7 @@ export default function ProfileScreen() {
           <Row icon="clock" iconColor={theme.success} label="Last Seen"
             right={
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14, textTransform: "capitalize" }}>{settings.lastSeen === "everyone" ? "Everyone" : "Nobody"}</Text>
+                <Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{settings.lastSeen === "everyone" ? "Everyone" : "Nobody"}</Text>
                 <Feather name="chevron-right" size={17} color={txtMut} />
               </View>
             }
@@ -302,39 +275,17 @@ export default function ProfileScreen() {
         </Text>
       </ScrollView>
 
-      {/* Edit Profile Modal */}
-      <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontWeight: "700", color: txt, fontFamily: "Inter_700Bold", marginBottom: 20 }}>Edit Profile</Text>
-            <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_500Medium", marginBottom: 8 }}>Display Name</Text>
-            <TextInput style={{ backgroundColor: theme.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: txt, borderWidth: 1, borderColor: border, fontFamily: "Inter_400Regular", marginBottom: 14 }} value={displayName} onChangeText={setDisplayName} placeholder="Your name" placeholderTextColor={txtMut} />
-            <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_500Medium", marginBottom: 8 }}>Avatar URL (optional)</Text>
-            <TextInput style={{ backgroundColor: theme.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: txt, borderWidth: 1, borderColor: border, fontFamily: "Inter_400Regular", marginBottom: 20 }} value={avatarUrl} onChangeText={setAvatarUrl} placeholder="https://..." placeholderTextColor={txtMut} autoCapitalize="none" />
-            <Pressable style={{ backgroundColor: primary, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center" }} onPress={handleSaveProfile} disabled={saving}>
-              {saving ? <ActivityIndicator color={bg} /> : <Text style={{ color: bg, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Save Changes</Text>}
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
       {/* Theme Modal */}
       <Modal visible={showTheme} animationType="slide" transparent onRequestClose={() => setShowTheme(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "85%" }}>
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontWeight: "700", color: txt, fontFamily: "Inter_700Bold", marginBottom: 16 }}>Choose Theme</Text>
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Choose Theme</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
               {THEME_OPTIONS.map((opt) => (
                 <Pressable
                   key={opt.key}
-                  style={{
-                    flexDirection: "row", alignItems: "center", padding: 14,
-                    borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 12,
-                    backgroundColor: themeName === opt.key ? `${primary}22` : theme.surfaceElevated,
-                    borderColor: themeName === opt.key ? primary : border,
-                  }}
+                  style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 12, backgroundColor: themeName === opt.key ? `${primary}22` : theme.surfaceElevated, borderColor: themeName === opt.key ? primary : border }}
                   onPress={() => { setTheme(opt.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowTheme(false); }}
                 >
                   <Text style={{ fontSize: 22 }}>{opt.emoji}</Text>
@@ -358,14 +309,14 @@ export default function ProfileScreen() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontWeight: "700", color: txt, fontFamily: "Inter_700Bold", marginBottom: 16 }}>Last Seen</Text>
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Last Seen</Text>
             {(["everyone", "nobody"] as const).map(opt => (
               <Pressable
                 key={opt}
                 style={{ flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, backgroundColor: settings.lastSeen === opt ? `${primary}22` : theme.surfaceElevated, borderColor: settings.lastSeen === opt ? primary : border }}
                 onPress={() => { saveSetting("lastSeen", opt); setShowLastSeen(false); }}
               >
-                <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: txt, textTransform: "capitalize" }}>{opt === "everyone" ? "Everyone" : "Nobody"}</Text>
+                <Text style={{ flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: txt }}>{opt === "everyone" ? "Everyone" : "Nobody"}</Text>
                 {settings.lastSeen === opt && <Feather name="check" size={20} color={primary} />}
               </Pressable>
             ))}
@@ -378,7 +329,7 @@ export default function ProfileScreen() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontWeight: "700", color: txt, fontFamily: "Inter_700Bold", marginBottom: 16 }}>Font Size</Text>
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Font Size</Text>
             {(["small", "medium", "large"] as const).map(opt => (
               <Pressable
                 key={opt}
@@ -404,7 +355,7 @@ export default function ProfileScreen() {
               <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: `${primary}22`, borderWidth: 2, borderColor: primary, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
                 <Feather name="message-circle" size={34} color={primary} />
               </View>
-              <Text style={{ fontSize: 24, fontWeight: "700", color: txt, fontFamily: "Inter_700Bold" }}>M Chat</Text>
+              <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: txt }}>M Chat</Text>
               <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 4 }}>Version 1.0.0 · Mattex Chat</Text>
               <View style={{ marginTop: 16, padding: 16, backgroundColor: theme.surfaceElevated, borderRadius: 14, width: "100%", borderWidth: 1, borderColor: border }}>
                 <Text style={{ color: txt, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 }}>

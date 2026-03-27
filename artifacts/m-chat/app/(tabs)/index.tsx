@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, FlatList, Pressable, StyleSheet, TextInput,
-  ActivityIndicator, Image, Platform, ScrollView
+  ActivityIndicator, Image, Platform, ScrollView, Modal, Animated
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,6 +52,13 @@ function AvatarCircle({ user, size = 52, theme }: { user: ConvUser; size?: numbe
   );
 }
 
+const MENU_ITEMS = [
+  { icon: "user", label: "My Profile", action: "profile" },
+  { icon: "edit-3", label: "New Chat", action: "newchat" },
+  { icon: "star", label: "Starred Messages", action: "starred" },
+  { icon: "settings", label: "Settings", action: "settings" },
+];
+
 export default function ChatsScreen() {
   const { theme } = useTheme();
   const { user, token } = useAuth();
@@ -59,6 +66,8 @@ export default function ChatsScreen() {
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<ConvUser[]>([]);
   const [searching, setSearching] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnim = useRef(new Animated.Value(0)).current;
   const queryClient = useQueryClient();
 
   const { data: conversations, isLoading, refetch } = useQuery<Conversation[]>({
@@ -71,6 +80,26 @@ export default function ChatsScreen() {
   useEffect(() => {
     if (!token) router.replace("/(auth)/login");
   }, [token]);
+
+  const openMenu = () => {
+    setMenuOpen(true);
+    Animated.spring(menuAnim, { toValue: 1, useNativeDriver: true, tension: 100, friction: 8 }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(menuAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setMenuOpen(false));
+  };
+
+  const handleMenuAction = (action: string) => {
+    closeMenu();
+    setTimeout(() => {
+      if (action === "profile") router.push("/my-profile");
+      else if (action === "settings") router.push("/(tabs)/profile");
+      else if (action === "newchat") searchRef.current?.focus();
+    }, 150);
+  };
+
+  const searchRef = useRef<TextInput>(null);
 
   const handleSearch = useCallback(async (q: string) => {
     setSearch(q);
@@ -100,54 +129,78 @@ export default function ChatsScreen() {
 
   const recentContacts = conversations?.map(c => c.otherUser) ?? [];
 
+  const menuScale = menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+  const menuOpacity = menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={{
-        paddingTop: insets.top + (Platform.OS === "web" ? 72 : 20),
+        paddingTop: insets.top + (Platform.OS === "web" ? 72 : 16),
         paddingHorizontal: 20,
         paddingBottom: 16,
         backgroundColor: theme.gradientTop,
       }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <View style={{
-            flex: 1, flexDirection: "row", alignItems: "center",
-            backgroundColor: theme.surface + "CC",
-            borderRadius: 14, paddingHorizontal: 14, height: 46,
-            borderWidth: 1, borderColor: theme.border,
-          }}>
-            <Feather name="search" size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
-            <TextInput
-              style={{ flex: 1, fontSize: 15, color: theme.text, fontFamily: "Inter_400Regular" }}
-              placeholder="Search"
-              placeholderTextColor={theme.textMuted}
-              value={search}
-              onChangeText={handleSearch}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searching && <ActivityIndicator size="small" color={theme.primary} />}
-            {!!search && (
-              <Pressable onPress={() => { setSearch(""); setSearchResults([]); }} hitSlop={8}>
-                <Feather name="x" size={16} color={theme.textMuted} />
-              </Pressable>
-            )}
-          </View>
+        {/* Title Row */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+          <Text style={{ flex: 1, fontSize: 26, fontFamily: "Inter_700Bold", color: theme.text }}>Chats</Text>
+          {/* Compose button */}
           <Pressable
             style={{
-              width: 46, height: 46, borderRadius: 14,
-              backgroundColor: theme.primary,
+              width: 40, height: 40, borderRadius: 12,
+              backgroundColor: `${theme.primary}22`,
               alignItems: "center", justifyContent: "center",
+              marginRight: 10,
             }}
-            onPress={() => setSearch("")}
+            onPress={() => searchRef.current?.focus()}
           >
-            <Feather name="edit-2" size={18} color={theme.gradientBottom} />
+            <Feather name="edit-2" size={17} color={theme.primary} />
           </Pressable>
+          {/* Hamburger menu */}
+          <Pressable
+            style={{
+              width: 40, height: 40, borderRadius: 12,
+              backgroundColor: `${theme.primary}22`,
+              alignItems: "center", justifyContent: "center",
+              gap: 4,
+            }}
+            onPress={openMenu}
+          >
+            <View style={{ width: 18, height: 2, backgroundColor: theme.primary, borderRadius: 1 }} />
+            <View style={{ width: 18, height: 2, backgroundColor: theme.primary, borderRadius: 1 }} />
+            <View style={{ width: 18, height: 2, backgroundColor: theme.primary, borderRadius: 1 }} />
+          </Pressable>
+        </View>
+
+        {/* Search bar */}
+        <View style={{
+          flexDirection: "row", alignItems: "center",
+          backgroundColor: theme.surface + "CC",
+          borderRadius: 14, paddingHorizontal: 14, height: 44,
+          borderWidth: 1, borderColor: theme.border,
+        }}>
+          <Feather name="search" size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
+          <TextInput
+            ref={searchRef}
+            style={{ flex: 1, fontSize: 15, color: theme.text, fontFamily: "Inter_400Regular" }}
+            placeholder="Search or start new chat"
+            placeholderTextColor={theme.textMuted}
+            value={search}
+            onChangeText={handleSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searching && <ActivityIndicator size="small" color={theme.primary} />}
+          {!!search && (
+            <Pressable onPress={() => { setSearch(""); setSearchResults([]); }} hitSlop={8}>
+              <Feather name="x" size={16} color={theme.textMuted} />
+            </Pressable>
+          )}
         </View>
 
         {recentContacts.length > 0 && !search && (
           <ScrollView
             horizontal showsHorizontalScrollIndicator={false}
-            style={{ marginTop: 20 }}
+            style={{ marginTop: 18 }}
             contentContainerStyle={{ gap: 16, paddingRight: 8 }}
           >
             {recentContacts.slice(0, 8).map(u => (
@@ -212,7 +265,7 @@ export default function ChatsScreen() {
           refreshing={false}
           ListHeaderComponent={
             <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text }}>Messages</Text>
+              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.textSecondary, letterSpacing: 0.5 }}>MESSAGES</Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -269,6 +322,54 @@ export default function ChatsScreen() {
             )
           }
         />
+      )}
+
+      {/* Hamburger Dropdown Menu */}
+      {menuOpen && (
+        <Modal visible transparent animationType="none" onRequestClose={closeMenu}>
+          <Pressable style={{ flex: 1 }} onPress={closeMenu}>
+            <Animated.View style={{
+              position: "absolute",
+              top: insets.top + (Platform.OS === "web" ? 100 : 72),
+              right: 16,
+              backgroundColor: theme.surface,
+              borderRadius: 16,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: theme.border,
+              minWidth: 200,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.4,
+              shadowRadius: 20,
+              elevation: 20,
+              opacity: menuOpacity,
+              transform: [{ scale: menuScale }, { translateY: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }],
+              transformOrigin: "top right",
+            }}>
+              {MENU_ITEMS.map((item, idx) => (
+                <React.Fragment key={item.action}>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flexDirection: "row", alignItems: "center", gap: 14,
+                      paddingHorizontal: 18, paddingVertical: 15,
+                      backgroundColor: pressed ? `${theme.primary}18` : "transparent",
+                    })}
+                    onPress={() => handleMenuAction(item.action)}
+                  >
+                    <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}>
+                      <Feather name={item.icon as any} size={15} color={theme.primary} />
+                    </View>
+                    <Text style={{ fontSize: 15, fontFamily: "Inter_500Medium", color: theme.text }}>{item.label}</Text>
+                  </Pressable>
+                  {idx < MENU_ITEMS.length - 1 && (
+                    <View style={{ height: 1, backgroundColor: theme.border, marginLeft: 64 }} />
+                  )}
+                </React.Fragment>
+              ))}
+            </Animated.View>
+          </Pressable>
+        </Modal>
       )}
     </View>
   );
