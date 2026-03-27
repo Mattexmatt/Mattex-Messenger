@@ -52,6 +52,143 @@ function AvatarCircle({ user, size = 52, theme }: { user: ConvUser; size?: numbe
   );
 }
 
+// ─── People on M Chat modal ───────────────────────────────────────────────────
+function PeopleModal({
+  visible, peopleSearch, setPeopleSearch, onClose, onStartChat, token, theme, insets, currentUserId
+}: {
+  visible: boolean; peopleSearch: string; setPeopleSearch: (s: string) => void;
+  onClose: () => void; onStartChat: (u: ConvUser) => void;
+  token: string | null; theme: any; insets: any; currentUserId?: number;
+}) {
+  const { data: allUsers, isLoading } = useQuery<ConvUser[]>({
+    queryKey: ["allUsers", token],
+    queryFn: () => apiRequest("/users/search"),
+    enabled: !!token && visible,
+    staleTime: 30_000,
+  });
+
+  const filtered = (allUsers ?? []).filter(u =>
+    !peopleSearch.trim() ||
+    u.displayName.toLowerCase().includes(peopleSearch.toLowerCase()) ||
+    u.username.toLowerCase().includes(peopleSearch.toLowerCase())
+  );
+
+  const colors = [theme.primary, theme.accent, "#FF6B9D", "#C77DFF", "#4FC3F7", "#FFB74D", "#69F0AE"];
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+        <View style={{
+          backgroundColor: theme.background,
+          borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          paddingBottom: insets.bottom + 20,
+          maxHeight: "92%",
+        }}>
+          {/* Handle */}
+          <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border }} />
+          </View>
+
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text }}>People on M Chat</Text>
+              <Text style={{ fontSize: 13, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                {allUsers ? `${allUsers.length} user${allUsers.length !== 1 ? "s" : ""}` : "Loading..."}
+              </Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.surfaceElevated, alignItems: "center", justifyContent: "center" }}
+            >
+              <Feather name="x" size={18} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+
+          {/* Search */}
+          <View style={{
+            flexDirection: "row", alignItems: "center",
+            marginHorizontal: 20, marginBottom: 12,
+            backgroundColor: theme.surface,
+            borderRadius: 14, paddingHorizontal: 14, height: 44,
+            borderWidth: 1, borderColor: theme.border,
+          }}>
+            <Feather name="search" size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
+            <TextInput
+              style={{ flex: 1, fontSize: 15, color: theme.text, fontFamily: "Inter_400Regular" }}
+              placeholder="Search by name or username"
+              placeholderTextColor={theme.textMuted}
+              value={peopleSearch}
+              onChangeText={setPeopleSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {peopleSearch.length > 0 && (
+              <Pressable onPress={() => setPeopleSearch("")} hitSlop={8}>
+                <Feather name="x-circle" size={16} color={theme.textMuted} />
+              </Pressable>
+            )}
+          </View>
+
+          {/* User list */}
+          {isLoading ? (
+            <View style={{ paddingTop: 60, alignItems: "center" }}>
+              <ActivityIndicator color={theme.primary} />
+              <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 12, fontSize: 14 }}>Finding people...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={(u) => String(u.id)}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 4 }}
+              renderItem={({ item }) => {
+                const color = colors[item.id % colors.length];
+                return (
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flexDirection: "row", alignItems: "center", gap: 14,
+                      paddingVertical: 10, paddingHorizontal: 14,
+                      backgroundColor: pressed ? `${theme.primary}12` : theme.surface,
+                      borderRadius: 16, borderWidth: 1, borderColor: theme.border,
+                    })}
+                    onPress={() => onStartChat(item)}
+                  >
+                    {/* Avatar */}
+                    {item.avatarUrl ? (
+                      <Image source={{ uri: item.avatarUrl }} style={{ width: 52, height: 52, borderRadius: 26 }} />
+                    ) : (
+                      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: `${color}33`, borderWidth: 2, borderColor: color, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color, fontSize: 20, fontFamily: "Inter_700Bold" }}>{item.displayName[0].toUpperCase()}</Text>
+                      </View>
+                    )}
+
+                    {/* Info */}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{item.displayName}</Text>
+                      <Text style={{ fontSize: 13, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 2 }}>@{item.username}</Text>
+                    </View>
+
+                    {/* Chat button */}
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="message-circle" size={17} color={theme.primary} />
+                    </View>
+                  </Pressable>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={{ paddingTop: 50, alignItems: "center", gap: 10 }}>
+                  <Ionicons name="people-outline" size={52} color={theme.textMuted} />
+                  <Text style={{ color: theme.textSecondary, fontFamily: "Inter_500Medium", fontSize: 16 }}>No users found</Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const MENU_ITEMS = [
   { icon: "user", label: "My Profile", action: "profile" },
   { icon: "edit-3", label: "New Chat", action: "newchat" },
@@ -67,6 +204,8 @@ export default function ChatsScreen() {
   const [searchResults, setSearchResults] = useState<ConvUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showPeople, setShowPeople] = useState(false);
+  const [peopleSearch, setPeopleSearch] = useState("");
   const menuAnim = useRef(new Animated.Value(0)).current;
   const queryClient = useQueryClient();
 
@@ -95,7 +234,7 @@ export default function ChatsScreen() {
     setTimeout(() => {
       if (action === "profile") router.push("/my-profile");
       else if (action === "settings") router.push("/settings");
-      else if (action === "newchat") searchRef.current?.focus();
+      else if (action === "newchat") { setPeopleSearch(""); setShowPeople(true); }
     }, 150);
   };
 
@@ -328,10 +467,23 @@ export default function ChatsScreen() {
           elevation: 10,
           opacity: pressed ? 0.85 : 1,
         })}
-        onPress={() => searchRef.current?.focus()}
+        onPress={() => { setPeopleSearch(""); setShowPeople(true); }}
       >
         <Feather name="plus" size={26} color={theme.isDark ? "#000" : "#fff"} />
       </Pressable>
+
+      {/* People on M Chat modal */}
+      <PeopleModal
+        visible={showPeople}
+        peopleSearch={peopleSearch}
+        setPeopleSearch={setPeopleSearch}
+        onClose={() => setShowPeople(false)}
+        onStartChat={(u) => { setShowPeople(false); startChat(u); }}
+        token={token}
+        theme={theme}
+        insets={insets}
+        currentUserId={user?.id}
+      />
 
       {/* Hamburger Dropdown Menu */}
       {menuOpen && (

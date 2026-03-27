@@ -45,10 +45,17 @@ router.put("/me", requireAuth, async (req: AuthRequest, res) => {
 
 router.get("/search", requireAuth, async (req: AuthRequest, res) => {
   const q = req.query.q as string;
-  if (!q) {
-    res.json([]);
+  const { ne } = await import("drizzle-orm");
+
+  if (!q || !q.trim()) {
+    // Return all users (for browsing) when no query
+    const users = await db.select().from(usersTable)
+      .where(ne(usersTable.id, req.userId!))
+      .limit(100);
+    res.json(users.map(formatUser));
     return;
   }
+
   const users = await db.select().from(usersTable)
     .where(ilike(usersTable.username, `%${q}%`))
     .limit(20);
