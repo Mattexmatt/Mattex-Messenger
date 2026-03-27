@@ -8,6 +8,7 @@ import memesRouter from "./memes";
 import statusesRouter from "./statuses";
 import presenceRouter from "./presence";
 import typingRouter from "./typing";
+import blocksRouter from "./blocks";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use("/memes", memesRouter);
 router.use("/statuses", statusesRouter);
 router.use(presenceRouter);
 router.use(typingRouter);
+router.use(blocksRouter);
 
 export default router;

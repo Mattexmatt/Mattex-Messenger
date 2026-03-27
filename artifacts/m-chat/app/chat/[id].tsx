@@ -307,6 +307,9 @@ export default function ChatScreen() {
   const [reactions, setReactions] = useState<Record<number, string[]>>({});
   const [reactionPickerMsg, setReactionPickerMsg] = useState<Message | null>(null);
   const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({
     fontSize: "medium", bubbleStyle: "rounded", readReceipts: true, enterToSend: false, vibrationEnabled: true,
   });
@@ -331,7 +334,52 @@ export default function ChatScreen() {
         });
       }
     });
+    // Load mute state for this conversation
+    AsyncStorage.getItem(`mchat_muted_${id}`).then((v) => setIsMuted(v === "1"));
   }, []);
+
+  // Load block status for the other user
+  useEffect(() => {
+    if (!token || !otherUserId) return;
+    apiRequest(`/users/${otherUserId}/block`).then((r: any) => setIsBlocked(r.isBlocked ?? false)).catch(() => {});
+  }, [otherUserId, token]);
+
+  const toggleMute = useCallback(async () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    await AsyncStorage.setItem(`mchat_muted_${id}`, next ? "1" : "0");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [isMuted, id]);
+
+  const toggleBlock = useCallback(async () => {
+    if (!otherUserId) return;
+    try {
+      if (isBlocked) {
+        await apiRequest(`/users/${otherUserId}/block`, { method: "DELETE" });
+        setIsBlocked(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert(
+          `Block ${name}?`,
+          "They won't be able to find you or message you. You can unblock them any time.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Block",
+              style: "destructive",
+              onPress: async () => {
+                await apiRequest(`/users/${otherUserId}/block`, { method: "POST" });
+                setIsBlocked(true);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              },
+            },
+          ]
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Could not update block status");
+    }
+  }, [isBlocked, otherUserId, name]);
 
   const { data: messages } = useQuery<Message[]>({
     queryKey: ["messages", id, token],
@@ -392,19 +440,19 @@ export default function ChatScreen() {
     };
   }, [text]);
 
-  // Update local typing state for the indicator dots (local user) — not needed but kept for clarity
+  // Play sound + vibrate on new message (respects mute)
   useEffect(() => {
     if (!messages) return;
     const newCount = messages.length;
     if (newCount > lastMsgCount.current && lastMsgCount.current > 0) {
       const newest = messages[0];
       if (newest.senderId !== user?.id) {
-        playReceiveSound();
-        if (appSettings.vibrationEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (!isMuted) playReceiveSound();
+        if (!isMuted && appSettings.vibrationEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     }
     lastMsgCount.current = newCount;
-  }, [messages]);
+  }, [messages, isMuted]);
 
   const sendMsg = useCallback(async (content: string, type: "text" | "audio" = "text") => {
     if (!content.trim() && type === "text") return;
@@ -621,7 +669,10 @@ export default function ChatScreen() {
           <Text style={{ color: theme.primary, fontSize: 17, fontFamily: "Inter_700Bold" }}>{(name ?? "?")[0].toUpperCase()}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{name}</Text>
+            {isMuted && <Feather name="bell-off" size={13} color={theme.textMuted} />}
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             {(presence?.isOnline || (whoTyping && whoTyping.length > 0)) && (
               <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#22c55e" }} />
@@ -649,11 +700,50 @@ export default function ChatScreen() {
           >
             <Feather name="phone" size={18} color={theme.primary} />
           </Pressable>
-          <Pressable style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
+          <Pressable
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: showMenu ? `${theme.primary}44` : `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}
+            onPress={() => setShowMenu(m => !m)}
+          >
             <Feather name="more-vertical" size={18} color={theme.primary} />
           </Pressable>
         </View>
       </View>
+
+      {/* Dropdown menu */}
+      {showMenu && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+          <Pressable style={{ flex: 1 }} onPress={() => setShowMenu(false)}>
+            <View style={{ position: "absolute", top: insets.top + (Platform.OS === "web" ? 130 : 72), right: 12, backgroundColor: theme.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.border, overflow: "hidden", minWidth: 220, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 10 }}>
+              {/* Mute toggle */}
+              <Pressable
+                onPress={() => { toggleMute(); setShowMenu(false); }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingVertical: 15, backgroundColor: pressed ? theme.surfaceElevated : "transparent", borderBottomWidth: 1, borderBottomColor: theme.border })}
+              >
+                <Feather name={isMuted ? "bell" : "bell-off"} size={19} color={isMuted ? theme.primary : theme.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: theme.text }}>{isMuted ? "Unmute notifications" : "Mute notifications"}</Text>
+                  {isMuted && <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: theme.textMuted, marginTop: 1 }}>Messages silenced</Text>}
+                </View>
+                {isMuted && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.primary }} />}
+              </Pressable>
+
+              {/* Block / Unblock */}
+              <Pressable
+                onPress={() => { setShowMenu(false); toggleBlock(); }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingVertical: 15, backgroundColor: pressed ? "#ff444412" : "transparent" })}
+              >
+                <Feather name={isBlocked ? "user-check" : "user-x"} size={19} color="#ff4444" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#ff4444" }}>{isBlocked ? `Unblock ${name}` : `Block ${name}`}</Text>
+                  <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: theme.textMuted, marginTop: 1 }}>
+                    {isBlocked ? "Allow messages again" : "Stop messages & calls"}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
 
       {/* Messages */}
       <FlatList
@@ -719,8 +809,27 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Blocked banner — replaces input when user is blocked */}
+      {isBlocked && (
+        <View style={{ backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.border, paddingHorizontal: 24, paddingVertical: 18, paddingBottom: insets.bottom + 18, alignItems: "center", gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Feather name="user-x" size={20} color="#ff4444" />
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#ff4444" }}>You blocked {name}</Text>
+          </View>
+          <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: theme.textMuted, textAlign: "center" }}>
+            Unblock from the menu above to send messages.
+          </Text>
+          <Pressable
+            onPress={toggleBlock}
+            style={({ pressed }) => ({ marginTop: 4, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 12, backgroundColor: pressed ? "#ff444430" : "#ff444418", borderWidth: 1, borderColor: "#ff444433" })}
+          >
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#ff4444" }}>Unblock {name}</Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* Input bar */}
-      <View style={{
+      {!isBlocked && <View style={{
         flexDirection: "row", alignItems: "flex-end", gap: 8,
         paddingHorizontal: 12, paddingVertical: 10,
         paddingBottom: insets.bottom + 10,
@@ -761,7 +870,7 @@ export default function ChatScreen() {
             <Feather name="mic" size={20} color={theme.primary} />
           </Pressable>
         )}
-      </View>
+      </View>}
 
       {/* Reaction picker modal */}
       {reactionPickerMsg && (
