@@ -351,35 +351,37 @@ export default function ChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [isMuted, id]);
 
-  const toggleBlock = useCallback(async () => {
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+
+  const toggleBlock = useCallback(() => {
     if (!otherUserId) return;
-    try {
-      if (isBlocked) {
-        await apiRequest(`/users/${otherUserId}/block`, { method: "DELETE" });
-        setIsBlocked(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Alert.alert(
-          `Block ${name}?`,
-          "They won't be able to find you or message you. You can unblock them any time.",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Block",
-              style: "destructive",
-              onPress: async () => {
-                await apiRequest(`/users/${otherUserId}/block`, { method: "POST" });
-                setIsBlocked(true);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              },
-            },
-          ]
-        );
-      }
-    } catch {
-      Alert.alert("Error", "Could not update block status");
+    if (isBlocked) {
+      setBlockLoading(true);
+      apiRequest(`/users/${otherUserId}/block`, { method: "DELETE" })
+        .then(() => {
+          setIsBlocked(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        })
+        .catch(() => Alert.alert("Error", "Could not unblock user"))
+        .finally(() => setBlockLoading(false));
+    } else {
+      setShowBlockConfirm(true);
     }
-  }, [isBlocked, otherUserId, name]);
+  }, [isBlocked, otherUserId]);
+
+  const confirmBlock = useCallback(() => {
+    if (!otherUserId) return;
+    setBlockLoading(true);
+    apiRequest(`/users/${otherUserId}/block`, { method: "POST" })
+      .then(() => {
+        setIsBlocked(true);
+        setShowBlockConfirm(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      })
+      .catch(() => Alert.alert("Error", "Could not block user"))
+      .finally(() => setBlockLoading(false));
+  }, [otherUserId]);
 
   const { data: messages } = useQuery<Message[]>({
     queryKey: ["messages", id, token],
@@ -885,6 +887,38 @@ export default function ChatScreen() {
           theme={theme}
         />
       )}
+
+      {/* Block confirmation modal */}
+      <Modal visible={showBlockConfirm} transparent animationType="fade" onRequestClose={() => setShowBlockConfirm(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center", padding: 24 }} onPress={() => setShowBlockConfirm(false)}>
+          <View style={{ backgroundColor: theme.surface, borderRadius: 20, padding: 24, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: theme.border }} onStartShouldSetResponder={() => true}>
+            <View style={{ alignItems: "center", marginBottom: 18 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#ff444418", borderWidth: 2, borderColor: "#ff444433", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                <Feather name="user-x" size={26} color="#ff4444" />
+              </View>
+              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text, marginBottom: 8 }}>Block {name}?</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary, textAlign: "center", lineHeight: 20 }}>
+                They won't be able to message you. You can unblock them any time from the chat or Settings.
+              </Text>
+            </View>
+            <Pressable
+              onPress={confirmBlock}
+              disabled={blockLoading}
+              style={({ pressed }) => ({ height: 50, borderRadius: 13, backgroundColor: pressed ? "#cc2222" : "#ff4444", alignItems: "center", justifyContent: "center", marginBottom: 10 })}
+            >
+              {blockLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>Block {name}</Text>}
+            </Pressable>
+            <Pressable
+              onPress={() => setShowBlockConfirm(false)}
+              style={({ pressed }) => ({ height: 50, borderRadius: 13, backgroundColor: pressed ? `${theme.primary}22` : `${theme.primary}10`, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: `${theme.primary}33` })}
+            >
+              <Text style={{ color: theme.primary, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
