@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
-  View, Text, Pressable, Modal, ScrollView, Alert, Platform, Image, Switch
+  View, Text, Pressable, Modal, ScrollView, Alert, Platform, Image, Switch, ActivityIndicator
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,8 @@ import THEMES, { ThemeName } from "@/constants/colors";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type SoundType, previewSound, updateSoundEnabled, updateSoundType } from "@/utils/sounds";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/utils/api";
 
 const THEME_OPTIONS: { key: ThemeName; label: string; emoji: string; colors: string[]; desc: string }[] = [
   { key: "midnight", label: "Midnight Hacker", emoji: "💀", colors: ["#080C08", "#00CC44", "#0F1A0F"], desc: "Dark green terminal" },
@@ -61,8 +63,9 @@ const DEFAULT_SETTINGS: Settings = {
 
 export default function SettingsScreen() {
   const { theme, themeName, setTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   const [showTheme, setShowTheme] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -70,7 +73,29 @@ export default function SettingsScreen() {
   const [showFontSize, setShowFontSize] = useState(false);
   const [showSound, setShowSound] = useState(false);
   const [showBubbleStyle, setShowBubbleStyle] = useState(false);
+  const [showBlocked, setShowBlocked] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+  const { data: blockedUsers, isLoading: loadingBlocked } = useQuery<{
+    blockId: number;
+    blockedAt: string;
+    user: { id: number; username: string; displayName: string; avatarUrl?: string | null };
+  }[]>({
+    queryKey: ["blockedUsers", token],
+    queryFn: () => apiRequest("/users/blocked"),
+    enabled: !!token && showBlocked,
+    staleTime: 5_000,
+  });
+
+  const unblockUser = async (userId: number, name: string) => {
+    try {
+      await apiRequest(`/users/${userId}/block`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", `Could not unblock ${name}`);
+    }
+  };
 
   useEffect(() => {
     AsyncStorage.getItem("mchat_settings").then((raw) => {
@@ -200,7 +225,10 @@ export default function SettingsScreen() {
           <ToggleRow icon="activity" iconColor={accent} label="Show Online Status" sublabel="Let contacts see when you're active" value={settings.onlineStatus} onChange={(v) => saveSetting("onlineStatus", v)} />
           <Row icon="clock" iconColor={theme.success} label="Last Seen"
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{settings.lastSeen === "everyone" ? "Everyone" : "Nobody"}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowLastSeen(true)} sep={false} />
+            onPress={() => setShowLastSeen(true)} />
+          <Row icon="user-x" iconColor={danger} label="Blocked Contacts"
+            right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{(blockedUsers?.length ?? 0) > 0 && <View style={{ backgroundColor: danger, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" }}>{blockedUsers!.length}</Text></View>}<Feather name="chevron-right" size={17} color={txtMut} /></View>}
+            onPress={() => setShowBlocked(true)} sep={false} />
         </Section>
 
         <Section title="Chats">
@@ -364,6 +392,78 @@ export default function SettingsScreen() {
             <Pressable style={{ backgroundColor: primary, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", marginTop: 8 }} onPress={() => setShowAbout(false)}>
               <Text style={{ color: bg, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Close</Text>
             </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Blocked Contacts modal */}
+      <Modal visible={showBlocked} animationType="slide" transparent onRequestClose={() => setShowBlocked(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowBlocked(false)}>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "80%" }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 6 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${danger}18`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="user-x" size={20} color={danger} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt }}>Blocked Contacts</Text>
+                <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>
+                  {(blockedUsers?.length ?? 0) === 0 ? "No one blocked" : `${blockedUsers!.length} blocked`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: border, marginBottom: 16, marginTop: 8 }} />
+
+            {loadingBlocked ? (
+              <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                <ActivityIndicator color={primary} />
+                <Text style={{ color: txtMut, fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 10 }}>Loading...</Text>
+              </View>
+            ) : (blockedUsers?.length ?? 0) === 0 ? (
+              <View style={{ paddingVertical: 48, alignItems: "center", gap: 12 }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: `${primary}14`, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="shield" size={32} color={primary} />
+                </View>
+                <Text style={{ color: txt, fontFamily: "Inter_600SemiBold", fontSize: 17 }}>No blocked contacts</Text>
+                <Text style={{ color: txtMut, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", lineHeight: 19 }}>
+                  Block someone from the ⋮ menu inside any chat
+                </Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
+                {blockedUsers!.map((row) => {
+                  const colors = [primary, "#FF6B9D", "#C77DFF", "#4FC3F7", "#FFB74D", "#69F0AE"];
+                  const color = colors[(row.user?.id ?? 0) % colors.length];
+                  return (
+                    <View key={row.blockId} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: border }}>
+                      {row.user?.avatarUrl ? (
+                        <Image source={{ uri: row.user.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                      ) : (
+                        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${color}28`, borderWidth: 2, borderColor: `${color}66`, alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ color, fontSize: 18, fontFamily: "Inter_700Bold" }}>{(row.user?.displayName ?? "?")[0].toUpperCase()}</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>{row.user?.displayName}</Text>
+                        <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>@{row.user?.username}</Text>
+                      </View>
+                      <Pressable
+                        onPress={() => Alert.alert(`Unblock ${row.user?.displayName}?`, "They'll be able to find and message you again.", [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Unblock", onPress: () => unblockUser(row.user!.id, row.user!.displayName) },
+                        ])}
+                        style={({ pressed }) => ({ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: pressed ? `${danger}30` : `${danger}18`, borderWidth: 1, borderColor: `${danger}33` })}
+                      >
+                        <Text style={{ color: danger, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Unblock</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         </Pressable>
       </Modal>

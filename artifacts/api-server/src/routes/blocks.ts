@@ -1,10 +1,30 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { userBlocksTable } from "@workspace/db/schema";
+import { userBlocksTable, usersTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+// GET /api/users/blocked — list all users I have blocked
+router.get("/users/blocked", requireAuth, async (req: AuthRequest, res) => {
+  const blockerId = req.userId!;
+  const rows = await db
+    .select({
+      blockId: userBlocksTable.id,
+      blockedAt: userBlocksTable.createdAt,
+      user: {
+        id: usersTable.id,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        avatarUrl: usersTable.avatarUrl,
+      },
+    })
+    .from(userBlocksTable)
+    .leftJoin(usersTable, eq(userBlocksTable.blockedId, usersTable.id))
+    .where(eq(userBlocksTable.blockerId, blockerId));
+  res.json(rows);
+});
 
 // GET /api/users/:userId/block — check if I blocked this user
 router.get("/users/:userId/block", requireAuth, async (req: AuthRequest, res) => {
