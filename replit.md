@@ -48,6 +48,44 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## M Chat App
+
+**M Chat** is the main product — a full-featured native mobile chat app by Allan Matt Tech. It uses the Expo artifact (`artifacts/m-chat`) with a PostgreSQL backend (`artifacts/api-server`).
+
+### Features
+- Username-based auth (JWT, no phone number)
+- Real-time 1-on-1 messaging with emoji picker and voice notes
+- 1-on-1 video call UI
+- 3 chat themes: Midnight Hacker (dark green), Sky Blue, Classic Mattex (purple, default)
+- Podcast Room with owner-only upload
+- Meme Community with likes
+- Scannable via QR code on Expo Go
+
+### DB Schema
+Tables: `users`, `conversations`, `messages`, `podcasts`, `memes`, `meme_likes`
+JWT secret: `JWT_SECRET` env var (default: `mchat-secret-key-2024`)
+
+### Mobile App Structure (`artifacts/m-chat`)
+- `app/_layout.tsx` — root: ThemeProvider, AuthProvider, QueryClient
+- `app/index.tsx` — redirects to login or tabs based on auth state
+- `app/(auth)/` — login.tsx, register.tsx
+- `app/(tabs)/` — index (Chats), memes, podcasts, profile
+- `app/chat/[id].tsx` — chat screen with emoji picker, voice note
+- `app/call/[id].tsx` — video call UI
+- `context/ThemeContext.tsx` — 3 themes
+- `context/AuthContext.tsx` — JWT stored in AsyncStorage
+- `utils/api.ts` — apiRequest() with auth header injection
+
+### API Routes (`artifacts/api-server/src/routes/`)
+- `auth.ts` — POST /auth/register, POST /auth/login
+- `users.ts` — GET /users/search, GET /users/me, PUT /users/me
+- `conversations.ts` — GET /conversations, POST /conversations
+- `messages.ts` — GET /messages/:convId, POST /messages
+- `podcasts.ts` — GET /podcasts, POST /podcasts (owner only)
+- `memes.ts` — GET /memes, POST /memes, POST /memes/:id/like, DELETE /memes/:id/like
+
+**Important**: Use `import { z } from "zod"` (not `zod/v4`) — workspace uses zod v3.
+
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)
