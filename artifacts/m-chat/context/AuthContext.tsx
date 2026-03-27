@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setToken } from "@/utils/api";
 
 export interface UserData {
   id: number;
@@ -30,7 +31,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const savedUser = await AsyncStorage.getItem("mchat_user");
       if (savedToken && savedUser) {
         setToken(savedToken);
+        setTokenState(savedToken);
         setUser(JSON.parse(savedUser));
       }
       setIsLoading(false);
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem("mchat_token", t);
     await AsyncStorage.setItem("mchat_user", JSON.stringify(u));
     setToken(t);
+    setTokenState(t);
     setUser(u);
   };
 
@@ -56,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem("mchat_token");
     await AsyncStorage.removeItem("mchat_user");
     setToken(null);
+    setTokenState(null);
     setUser(null);
   };
 

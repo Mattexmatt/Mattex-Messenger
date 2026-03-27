@@ -48,7 +48,7 @@ export default function RegisterScreen() {
         body: JSON.stringify({ username: username.trim(), displayName: displayName.trim(), password }),
       });
       await login(data.token, data.user);
-      router.dismissAll();
+      router.replace("/(tabs)");
     } catch (e: any) {
       setError(e.message ?? "Registration failed");
     } finally {

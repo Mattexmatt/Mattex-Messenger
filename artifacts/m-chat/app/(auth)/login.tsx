@@ -43,7 +43,7 @@ export default function LoginScreen() {
         body: JSON.stringify({ username: username.trim(), password }),
       });
       await login(data.token, data.user);
-      router.dismissAll();
+      router.replace("/(tabs)");
     } catch (e: any) {
       setError(e.message ?? "Login failed");
     } finally {
