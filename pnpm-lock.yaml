@@ -169,9 +169,6 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
-      '@workspace/integrations-gemini-ai':
-        specifier: workspace:*
-        version: link:../../lib/integrations-gemini-ai
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
