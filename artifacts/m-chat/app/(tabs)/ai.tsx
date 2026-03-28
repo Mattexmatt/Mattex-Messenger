@@ -98,7 +98,7 @@ export default function AIScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 72 : 0) }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -137,7 +137,7 @@ export default function AIScreen() {
       )}
 
       {/* Input bar */}
-      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.inputBar, { paddingBottom: Platform.OS === "web" ? 96 : Math.max(insets.bottom, 12) }]}>
         <TextInput
           style={styles.input}
           value={input}
