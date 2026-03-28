@@ -121,25 +121,44 @@ function StoryRing({ group, size, onPress, isMe, theme, user: userProp }: {
 }
 
 // ─── Story Viewer ─────────────────────────────────────────────────────────────
-function StoryViewer({ groups, startGroupIdx, onClose, theme }: {
+interface ViewerUser { id: number; username: string; displayName: string; avatarUrl?: string | null }
+interface StatusViewEntry { user: ViewerUser; viewedAt: string }
+
+function StoryViewer({ groups, startGroupIdx, onClose, theme, currentUser, token }: {
   groups: StoryGroup[]; startGroupIdx: number; onClose: () => void; theme: any;
+  currentUser?: ViewerUser | null; token: string | null;
 }) {
   const insets = useSafeAreaInsets();
   const { width: SCREEN_W } = useWindowDimensions();
   const [groupIdx, setGroupIdx] = useState(startGroupIdx);
   const [itemIdx, setItemIdx] = useState(0);
+  const [showViewers, setShowViewers] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
   const DURATION = 5000;
 
   const group = groups[groupIdx];
   const item = group?.items[itemIdx];
+  const isOwn = item?.userId === currentUser?.id;
   const isTextStory = item?.type === "text";
   const textBgKey = isTextStory ? item.mediaUrl.replace("text:", "") : "";
   const textColors = getTextBg(textBgKey);
 
+  // Fetch viewers for own stories
+  const { data: viewers, refetch: refetchViewers } = useQuery<StatusViewEntry[]>({
+    queryKey: ["status-views", item?.id],
+    queryFn: () => apiRequest(`/statuses/${item!.id}/views`),
+    enabled: !!token && !!item?.id && isOwn,
+    refetchInterval: isOwn ? 8000 : false,
+  });
+
+  // Record view when story changes
   React.useEffect(() => {
+    if (item && !isOwn && token) {
+      apiRequest(`/statuses/${item.id}/view`, { method: "POST" }).catch(() => {});
+    }
     startProgress();
+    setShowViewers(false);
     return () => animRef.current?.stop();
   }, [groupIdx, itemIdx]);
 
@@ -164,6 +183,8 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme }: {
 
   if (!group || !item) return null;
 
+  const viewCount = viewers?.length ?? 0;
+
   return (
     <Modal visible animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
@@ -177,7 +198,7 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme }: {
 
         {/* Gradient overlays for readability */}
         <LinearGradient colors={["rgba(0,0,0,0.65)", "transparent"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 200 }} />
-        <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 240 }} />
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 280 }} />
 
         {/* Text story content */}
         {isTextStory && (
@@ -226,16 +247,79 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme }: {
 
         {/* Caption (for image stories) */}
         {!isTextStory && item.caption && (
-          <View style={{ position: "absolute", bottom: insets.bottom + 60, left: 20, right: 20, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 12, padding: 12 }}>
+          <View style={{ position: "absolute", bottom: insets.bottom + (isOwn ? 100 : 60), left: 20, right: 20, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 12, padding: 12 }}>
             <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_500Medium", lineHeight: 24 }}>{item.caption}</Text>
           </View>
         )}
 
-        {/* Tap left → back, tap right → advance, tap center top → close */}
-        <Pressable style={{ position: "absolute", left: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: 0 }} onPress={goBack} />
-        <Pressable style={{ position: "absolute", right: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: 0 }} onPress={advance} />
-        {/* Center tap = close */}
-        <Pressable style={{ position: "absolute", left: SCREEN_W * 0.33, right: SCREEN_W * 0.33, top: insets.top + 80, bottom: 0 }} onPress={onClose} />
+        {/* ── Views panel (own stories only) ── */}
+        {isOwn && (
+          <Pressable
+            onPress={() => setShowViewers(v => !v)}
+            style={{ position: "absolute", bottom: insets.bottom + 20, left: 20, right: 20 }}
+          >
+            {/* Viewer count row */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {/* Stacked avatars */}
+              <View style={{ flexDirection: "row" }}>
+                {(viewers ?? []).slice(0, 4).map((v, i) => (
+                  <View key={v.user.id} style={{ marginLeft: i === 0 ? 0 : -10, borderWidth: 2, borderColor: "rgba(0,0,0,0.6)", borderRadius: 14 }}>
+                    {v.user.avatarUrl ? (
+                      <Image source={{ uri: v.user.avatarUrl }} style={{ width: 26, height: 26, borderRadius: 13 }} />
+                    ) : (
+                      <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" }}>{v.user.displayName[0].toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+              <Feather name="eye" size={18} color="rgba(255,255,255,0.9)" />
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+                {viewCount} {viewCount === 1 ? "view" : "views"}
+              </Text>
+              <Feather name={showViewers ? "chevron-down" : "chevron-up"} size={16} color="rgba(255,255,255,0.7)" />
+            </View>
+
+            {/* Expanded viewer list */}
+            {showViewers && (viewers ?? []).length > 0 && (
+              <View style={{ marginTop: 12, backgroundColor: "rgba(0,0,0,0.65)", borderRadius: 16, paddingVertical: 8, maxHeight: 200 }}>
+                <ScrollView scrollEnabled nestedScrollEnabled>
+                  {(viewers ?? []).map((v, i) => (
+                    <View
+                      key={v.user.id}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: i < (viewers!.length - 1) ? 0.5 : 0, borderBottomColor: "rgba(255,255,255,0.1)" }}
+                    >
+                      {v.user.avatarUrl ? (
+                        <Image source={{ uri: v.user.avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                      ) : (
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>{v.user.displayName[0].toUpperCase()}</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{v.user.displayName}</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.55)", fontFamily: "Inter_400Regular", fontSize: 12 }}>@{v.user.username} · {timeAgo(v.viewedAt)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {showViewers && (viewers ?? []).length === 0 && (
+              <View style={{ marginTop: 10, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Feather name="eye-off" size={16} color="rgba(255,255,255,0.5)" />
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", fontSize: 14 }}>No views yet</Text>
+              </View>
+            )}
+          </Pressable>
+        )}
+
+        {/* Tap left → back, tap right → advance */}
+        <Pressable style={{ position: "absolute", left: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: isOwn ? 140 : 0 }} onPress={goBack} />
+        <Pressable style={{ position: "absolute", right: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: isOwn ? 140 : 0 }} onPress={advance} />
+        <Pressable style={{ position: "absolute", left: SCREEN_W * 0.33, right: SCREEN_W * 0.33, top: insets.top + 80, bottom: isOwn ? 140 : 0 }} onPress={onClose} />
       </View>
     </Modal>
   );
@@ -713,7 +797,7 @@ export default function StatusScreen() {
       <AddStatusModal visible={showAdd} onClose={() => setShowAdd(false)} onAdded={() => { queryClient.invalidateQueries({ queryKey: ["statuses"] }); refetch(); }} theme={theme} insets={insets} />
 
       {viewerVisible && viewerGroups.length > 0 && (
-        <StoryViewer groups={viewerGroups} startGroupIdx={viewerStartIdx} onClose={() => setViewerVisible(false)} theme={theme} />
+        <StoryViewer groups={viewerGroups} startGroupIdx={viewerStartIdx} onClose={() => setViewerVisible(false)} theme={theme} currentUser={user} token={token} />
       )}
     </View>
   );

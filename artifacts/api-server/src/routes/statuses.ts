@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { statusesTable, usersTable, conversationsTable } from "@workspace/db/schema";
-import { eq, or, and, gt, desc, inArray } from "drizzle-orm";
+import { statusesTable, usersTable, conversationsTable, statusViewsTable } from "@workspace/db/schema";
+import { eq, or, and, gt, desc, inArray, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -77,6 +77,50 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
   res.status(201).json(formatStatus(status, user));
+});
+
+// Mark a status as viewed (idempotent — ignores own views)
+router.post("/:id/view", requireAuth, async (req: AuthRequest, res) => {
+  const statusId = parseInt(req.params.id, 10);
+  const viewerId = req.userId!;
+
+  const [status] = await db.select().from(statusesTable).where(eq(statusesTable.id, statusId));
+  if (!status) { res.status(404).json({ error: "Status not found" }); return; }
+  // Don't count owner's own view
+  if (status.userId === viewerId) { res.json({ ok: true }); return; }
+
+  await db.insert(statusViewsTable)
+    .values({ statusId, viewerId })
+    .onConflictDoNothing();
+
+  res.json({ ok: true });
+});
+
+// Get viewers for a status (only accessible by the status owner)
+router.get("/:id/views", requireAuth, async (req: AuthRequest, res) => {
+  const statusId = parseInt(req.params.id, 10);
+  const userId = req.userId!;
+
+  const [status] = await db.select().from(statusesTable).where(eq(statusesTable.id, statusId));
+  if (!status) { res.status(404).json({ error: "Status not found" }); return; }
+  if (status.userId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const views = await db
+    .select({ viewer: usersTable, viewedAt: statusViewsTable.createdAt })
+    .from(statusViewsTable)
+    .innerJoin(usersTable, eq(statusViewsTable.viewerId, usersTable.id))
+    .where(eq(statusViewsTable.statusId, statusId))
+    .orderBy(desc(statusViewsTable.createdAt));
+
+  res.json(views.map(v => ({
+    user: {
+      id: v.viewer.id,
+      username: v.viewer.username,
+      displayName: v.viewer.displayName,
+      avatarUrl: v.viewer.avatarUrl,
+    },
+    viewedAt: v.viewedAt,
+  })));
 });
 
 router.delete("/:id", requireAuth, async (req: AuthRequest, res) => {
