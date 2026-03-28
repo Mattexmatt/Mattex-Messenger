@@ -50,7 +50,7 @@ router.post("/chat", requireAuth, async (req: AuthRequest, res) => {
     { role: "user" as Role, parts: [{ text: message.trim() }] },
   ];
 
-  const url = `${baseUrl}/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `${baseUrl}/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   const body = {
     system_instruction: { parts: [{ text: MATTEX_SYSTEM_PROMPT }] },

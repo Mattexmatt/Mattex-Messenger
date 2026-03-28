@@ -33,7 +33,7 @@ export async function detectSpam(content: string): Promise<DetectionResult> {
   const MAX_LEN = 500;
   const excerpt = content.length > MAX_LEN ? content.slice(0, MAX_LEN) : content;
 
-  const url = `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `${baseUrl}/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   const body = {
     system_instruction: {
