@@ -24,6 +24,8 @@ interface Message {
   type: "text" | "audio" | "image";
   isDeleted?: number;
   deletedForIds?: string;
+  spamFlag?: string | null;
+  spamReason?: string | null;
   createdAt: string;
   sender?: { id: number; displayName: string; avatarUrl?: string | null };
 }
@@ -597,6 +599,33 @@ export default function ChatScreen() {
                       <View style={{ backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : `${theme.primary}18`, borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: isOwn ? "rgba(255,255,255,0.6)" : theme.primary }}>
                         <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.75)" : theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 2 }}>↩ Replied</Text>
                         <Text style={{ fontSize: 12, color: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{replyLine}</Text>
+                      </View>
+                    )}
+
+                    {/* Mattex AI spam/scam warning */}
+                    {(item.spamFlag === "spam" || item.spamFlag === "scam") && (
+                      <View style={{
+                        backgroundColor: item.spamFlag === "scam" ? "rgba(220,38,38,0.12)" : "rgba(245,158,11,0.12)",
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 7,
+                        marginBottom: 6,
+                        borderLeftWidth: 3,
+                        borderLeftColor: item.spamFlag === "scam" ? "#DC2626" : "#F59E0B",
+                        gap: 2,
+                      }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                          <Text style={{ fontSize: 12 }}>{item.spamFlag === "scam" ? "🚨" : "⚠️"}</Text>
+                          <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: item.spamFlag === "scam" ? "#DC2626" : "#B45309" }}>
+                            {item.spamFlag === "scam" ? "Possible Scam" : "Possible Spam"}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: item.spamFlag === "scam" ? "#DC2626" : "#B45309", fontFamily: "Inter_400Regular", marginLeft: 2 }}>· Mattex AI</Text>
+                        </View>
+                        {!!item.spamReason && (
+                          <Text style={{ fontSize: 11, color: item.spamFlag === "scam" ? "#B91C1C" : "#92400E", fontFamily: "Inter_400Regular", marginLeft: 17 }}>
+                            {item.spamReason}
+                          </Text>
+                        )}
                       </View>
                     )}
 

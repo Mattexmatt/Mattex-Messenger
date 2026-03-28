@@ -8,8 +8,10 @@ export const messagesTable = pgTable("messages", {
   senderId: integer("sender_id").notNull().references(() => usersTable.id),
   content: text("content").notNull(),
   type: text("type", { enum: ["text", "audio", "image"] }).notNull().default("text"),
-  isDeleted: integer("is_deleted").notNull().default(0), // 1 = deleted for everyone
-  deletedForIds: text("deleted_for_ids").default(""), // comma-separated user IDs (delete for me)
+  isDeleted: integer("is_deleted").notNull().default(0),
+  deletedForIds: text("deleted_for_ids").default(""),
+  spamFlag: text("spam_flag").default("none"), // "none" | "spam" | "scam"
+  spamReason: text("spam_reason").default(null),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

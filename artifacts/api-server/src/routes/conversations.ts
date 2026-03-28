@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { conversationsTable, messagesTable, usersTable } from "@workspace/db/schema";
 import { eq, or, and, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
+import { detectSpam } from "../spamDetector";
 
 const router: IRouter = Router();
 
@@ -119,6 +120,8 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     type: messagesTable.type,
     isDeleted: messagesTable.isDeleted,
     deletedForIds: messagesTable.deletedForIds,
+    spamFlag: messagesTable.spamFlag,
+    spamReason: messagesTable.spamReason,
     createdAt: messagesTable.createdAt,
     sender: {
       id: usersTable.id,
@@ -170,11 +173,14 @@ router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, r
     return;
   }
 
+  // Save message first
   const [message] = await db.insert(messagesTable).values({
     conversationId,
     senderId: req.userId!,
     content,
     type,
+    spamFlag: "none",
+    spamReason: null,
   }).returning();
 
   await db.update(conversationsTable)
@@ -183,12 +189,30 @@ router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, r
 
   const [sender] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
 
+  // Run spam/scam detection for text messages (non-blocking for sender, but completes before recipient fetches)
+  let spamFlag = "none";
+  let spamReason: string | null = null;
+
+  if (type === "text" && content.length >= 4) {
+    const detection = await detectSpam(content);
+    spamFlag = detection.flag;
+    spamReason = detection.reason || null;
+
+    if (spamFlag !== "none") {
+      await db.update(messagesTable)
+        .set({ spamFlag: detection.flag, spamReason: detection.reason || null })
+        .where(eq(messagesTable.id, message.id));
+    }
+  }
+
   res.status(201).json({
     id: message.id,
     conversationId: message.conversationId,
     senderId: message.senderId,
     content: message.content,
     type: message.type,
+    spamFlag,
+    spamReason,
     createdAt: message.createdAt,
     sender: {
       id: sender.id,
