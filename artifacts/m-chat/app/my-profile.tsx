@@ -43,6 +43,7 @@ export default function MyProfileScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [avatarUri, setAvatarUri] = useState<string>(user?.avatarUrl ?? "");
+  const [avatarChanged, setAvatarChanged] = useState(false);
   const [bio, setBio] = useState(user?.bio ?? "");
   const [hobbies, setHobbies] = useState<string[]>(parseHobbies(user?.hobbies));
   const [hobbyInput, setHobbyInput] = useState("");
@@ -65,6 +66,7 @@ export default function MyProfileScreen() {
   const openEditModal = () => {
     setDisplayName(user?.displayName ?? "");
     setAvatarUri(user?.avatarUrl ?? "");
+    setAvatarChanged(false);
     setBio(user?.bio ?? "");
     setHobbies(parseHobbies(user?.hobbies));
     setHobbyInput("");
@@ -95,6 +97,7 @@ export default function MyProfileScreen() {
         } else {
           setAvatarUri(asset.uri);
         }
+        setAvatarChanged(true);
       }
     } finally {
       setPickingImage(false);
@@ -118,19 +121,36 @@ export default function MyProfileScreen() {
       return;
     }
     setSaving(true);
+
+    // Optimistically close the modal and update local state immediately
+    const optimisticUser = {
+      ...user!,
+      displayName: displayName.trim(),
+      bio: bio.trim() || null,
+      hobbies: JSON.stringify(hobbies),
+      ...(avatarChanged ? { avatarUrl: avatarUri.trim() || null } : {}),
+    };
+    updateUser(optimisticUser);
+    setShowEdit(false);
+
     try {
+      const body: Record<string, unknown> = {
+        displayName: displayName.trim(),
+        bio: bio.trim() || null,
+        hobbies: JSON.stringify(hobbies),
+      };
+      // Only include avatar if it was actually changed (base64 is large — skip if unchanged)
+      if (avatarChanged) {
+        body.avatarUrl = avatarUri.trim() || null;
+      }
       const updated = await apiRequest("/users/me", {
         method: "PUT",
-        body: JSON.stringify({
-          displayName: displayName.trim(),
-          avatarUrl: avatarUri.trim() || null,
-          bio: bio.trim() || null,
-          hobbies: JSON.stringify(hobbies),
-        }),
+        body: JSON.stringify(body),
       });
       updateUser(updated);
-      setShowEdit(false);
     } catch (e: any) {
+      // Rollback on error
+      updateUser(user!);
       Alert.alert("Error", e.message ?? "Could not save changes.");
     } finally {
       setSaving(false);
@@ -285,11 +305,14 @@ export default function MyProfileScreen() {
 
       {/* Edit Profile Modal */}
       <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowEdit(false)}>
-          <View
-            style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 28, maxHeight: "92%" }}
-            onStartShouldSetResponder={() => true}
-          >
+        <View style={{ flex: 1 }}>
+          {/* Backdrop — separate from the content so it doesn't block touches inside the sheet */}
+          <Pressable
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)" }}
+            onPress={() => setShowEdit(false)}
+          />
+          {/* Content sheet — sibling of the backdrop, not a child */}
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 28, maxHeight: "92%" }}>
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 18 }} />
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -394,7 +417,7 @@ export default function MyProfileScreen() {
 
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );
