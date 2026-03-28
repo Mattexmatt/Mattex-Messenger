@@ -11,11 +11,30 @@ import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
 import { useQuery } from "@tanstack/react-query";
 
+const HOBBY_COLORS = [
+  "#FF6B9D", "#C77DFF", "#4FC3F7", "#52B788",
+  "#FFB74D", "#F77F00", "#FF4D6D", "#4CC9F0",
+  "#06D6A0", "#EF476F", "#118AB2", "#FFD166",
+];
+
+function hobbyColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return HOBBY_COLORS[h % HOBBY_COLORS.length];
+}
+
+function parseHobbies(raw?: string | null): string[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
 interface UserProfile {
   id: number;
   username: string;
   displayName: string;
   avatarUrl?: string | null;
+  bio?: string | null;
+  hobbies?: string | null;
   status?: string | null;
   isOwner: boolean;
   createdAt: string;
@@ -164,6 +183,36 @@ export default function UserProfileScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Bio */}
+        {profile?.bio && (
+          <View style={{ marginHorizontal: 20, marginTop: 20, backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 14, flexDirection: "row", gap: 12 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: `${theme.accent}22`, alignItems: "center", justifyContent: "center" }}>
+              <Feather name="file-text" size={16} color={theme.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: theme.textMuted, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 }}>Bio</Text>
+              <Text style={{ fontSize: 14, color: theme.text, fontFamily: "Inter_400Regular", lineHeight: 21 }}>{profile.bio}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Hobbies */}
+        {parseHobbies(profile?.hobbies).length > 0 && (
+          <View style={{ marginHorizontal: 20, marginTop: 14 }}>
+            <Text style={{ fontSize: 11, color: theme.textMuted, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10, marginLeft: 4 }}>Hobbies & Interests</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {parseHobbies(profile.hobbies).map((h) => {
+                const c = hobbyColor(h);
+                return (
+                  <View key={h} style={{ backgroundColor: `${c}22`, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: `${c}55` }}>
+                    <Text style={{ color: c, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>{h}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Info cards */}
         <View style={{ paddingHorizontal: 20, paddingTop: 24, gap: 12 }}>

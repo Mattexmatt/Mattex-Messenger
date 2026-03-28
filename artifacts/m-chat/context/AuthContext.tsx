@@ -7,6 +7,8 @@ export interface UserData {
   username: string;
   displayName: string;
   avatarUrl?: string | null;
+  bio?: string | null;
+  hobbies?: string | null;
   status?: string | null;
   statusUpdatedAt?: string | null;
   isOwner: boolean;

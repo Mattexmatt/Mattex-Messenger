@@ -12,6 +12,8 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     username: user.username,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    bio: user.bio ?? null,
+    hobbies: user.hobbies ?? "[]",
     status: user.status ?? "🟢 Available",
     statusUpdatedAt: user.statusUpdatedAt,
     isOwner: user.isOwner,
@@ -29,11 +31,13 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
 });
 
 router.put("/me", requireAuth, async (req: AuthRequest, res) => {
-  const { displayName, avatarUrl, status } = req.body;
+  const { displayName, avatarUrl, status, bio, hobbies } = req.body;
   const updates: Partial<typeof usersTable.$inferInsert> = {};
 
   if (displayName) updates.displayName = displayName;
   if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+  if (bio !== undefined) updates.bio = bio;
+  if (hobbies !== undefined) updates.hobbies = typeof hobbies === "string" ? hobbies : JSON.stringify(hobbies);
   if (status !== undefined) {
     updates.status = status;
     updates.statusUpdatedAt = new Date();
