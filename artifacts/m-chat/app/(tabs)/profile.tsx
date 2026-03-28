@@ -133,6 +133,10 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme, currentUser, token
   const [groupIdx, setGroupIdx] = useState(startGroupIdx);
   const [itemIdx, setItemIdx] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [replySent, setReplySent] = useState(false);
+  const [replyFocused, setReplyFocused] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
   const DURATION = 5000;
@@ -159,8 +163,38 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme, currentUser, token
     }
     startProgress();
     setShowViewers(false);
+    setReplyText("");
+    setReplySent(false);
+    setReplyFocused(false);
     return () => animRef.current?.stop();
   }, [groupIdx, itemIdx]);
+
+  // Pause / resume animation when reply box focused
+  React.useEffect(() => {
+    if (replyFocused) {
+      animRef.current?.stop();
+    } else {
+      startProgress();
+    }
+  }, [replyFocused]);
+
+  const handleReply = async () => {
+    if (!replyText.trim() || !token) return;
+    setReplySending(true);
+    try {
+      const conv = await apiRequest("/conversations", { method: "POST", body: JSON.stringify({ otherUserId: group.user.id }) });
+      const preview = item.caption ? `↩ Status: "${item.caption.slice(0, 60)}${item.caption.length > 60 ? "…" : ""}"` : "↩ Replied to a status";
+      await apiRequest(`/conversations/${conv.id}/messages`, { method: "POST", body: JSON.stringify({ content: `${preview}\n\n${replyText.trim()}`, type: "text" }) });
+      setReplyText("");
+      setReplySent(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setReplySent(false), 2500);
+    } catch {
+      // silent
+    } finally {
+      setReplySending(false);
+    }
+  };
 
   const startProgress = () => {
     progressAnim.setValue(0);
@@ -247,7 +281,7 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme, currentUser, token
 
         {/* Caption (for image stories) */}
         {!isTextStory && item.caption && (
-          <View style={{ position: "absolute", bottom: insets.bottom + (isOwn ? 100 : 60), left: 20, right: 20, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 12, padding: 12 }}>
+          <View style={{ position: "absolute", bottom: insets.bottom + (isOwn ? 100 : 82), left: 20, right: 20, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 12, padding: 12 }}>
             <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_500Medium", lineHeight: 24 }}>{item.caption}</Text>
           </View>
         )}
@@ -316,10 +350,55 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme, currentUser, token
           </Pressable>
         )}
 
+        {/* ── Reply input (others' stories only) ── */}
+        {!isOwn && (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "position" : undefined}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}
+          >
+            <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 12, paddingTop: 8 }}>
+              {replySent ? (
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(0,200,100,0.25)", borderRadius: 28, paddingVertical: 14, borderWidth: 1, borderColor: "rgba(0,200,100,0.4)" }}>
+                  <Feather name="check-circle" size={18} color="#4ade80" />
+                  <Text style={{ color: "#4ade80", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Reply sent!</Text>
+                </View>
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 28, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }}>
+                  <TextInput
+                    value={replyText}
+                    onChangeText={setReplyText}
+                    placeholder={`Reply to ${group.user.displayName}…`}
+                    placeholderTextColor="rgba(255,255,255,0.45)"
+                    style={{ flex: 1, color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", paddingVertical: 6, minHeight: 36 }}
+                    onFocus={() => setReplyFocused(true)}
+                    onBlur={() => setReplyFocused(false)}
+                    onSubmitEditing={handleReply}
+                    returnKeyType="send"
+                    multiline={false}
+                  />
+                  {replyText.trim().length > 0 && (
+                    <Pressable
+                      onPress={handleReply}
+                      disabled={replySending}
+                      style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, backgroundColor: pressed ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" })}
+                    >
+                      {replySending ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Feather name="send" size={17} color="#fff" />
+                      )}
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        )}
+
         {/* Tap left → back, tap right → advance */}
-        <Pressable style={{ position: "absolute", left: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: isOwn ? 140 : 0 }} onPress={goBack} />
-        <Pressable style={{ position: "absolute", right: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: isOwn ? 140 : 0 }} onPress={advance} />
-        <Pressable style={{ position: "absolute", left: SCREEN_W * 0.33, right: SCREEN_W * 0.33, top: insets.top + 80, bottom: isOwn ? 140 : 0 }} onPress={onClose} />
+        <Pressable style={{ position: "absolute", left: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: isOwn ? 140 : 76 }} onPress={goBack} />
+        <Pressable style={{ position: "absolute", right: 0, top: insets.top + 80, width: SCREEN_W * 0.33, bottom: isOwn ? 140 : 76 }} onPress={advance} />
+        <Pressable style={{ position: "absolute", left: SCREEN_W * 0.33, right: SCREEN_W * 0.33, top: insets.top + 80, bottom: isOwn ? 140 : 76 }} onPress={onClose} />
       </View>
     </Modal>
   );

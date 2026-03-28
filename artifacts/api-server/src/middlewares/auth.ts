@@ -4,6 +4,7 @@ import { JWT_SECRET } from "../routes/auth";
 
 export interface AuthRequest extends Request {
   userId?: number;
+  jti?: string;
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
@@ -15,8 +16,9 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 
   const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: number; jti?: string };
     req.userId = payload.userId;
+    req.jti = payload.jti;
     next();
   } catch {
     res.status(401).json({ error: "Invalid token" });

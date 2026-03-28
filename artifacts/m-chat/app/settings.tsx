@@ -74,6 +74,8 @@ export default function SettingsScreen() {
   const [showSound, setShowSound] = useState(false);
   const [showBubbleStyle, setShowBubbleStyle] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
+  const [showDevices, setShowDevices] = useState(false);
+  const [loginAlertDismissed, setLoginAlertDismissed] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   const { data: blockedUsers, isLoading: loadingBlocked } = useQuery<{
@@ -86,6 +88,59 @@ export default function SettingsScreen() {
     enabled: !!token && showBlocked,
     staleTime: 5_000,
   });
+
+  interface SessionEntry {
+    id: number;
+    deviceName: string;
+    platform: string;
+    ipAddress: string | null;
+    lastActiveAt: string;
+    createdAt: string;
+    isCurrent: boolean;
+  }
+
+  const { data: sessions, isLoading: loadingSessions, refetch: refetchSessions } = useQuery<SessionEntry[]>({
+    queryKey: ["sessions", token],
+    queryFn: () => apiRequest("/sessions"),
+    enabled: !!token && showDevices,
+    staleTime: 10_000,
+  });
+
+  const { data: loginAlerts } = useQuery<{ id: number; deviceName: string; platform: string; createdAt: string }[]>({
+    queryKey: ["loginAlerts", token],
+    queryFn: async () => {
+      const since = await AsyncStorage.getItem("mchat_last_alert_check");
+      return apiRequest(`/sessions/alerts${since ? `?since=${encodeURIComponent(since)}` : ""}`);
+    },
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (loginAlerts && loginAlerts.length > 0 && !loginAlertDismissed) {
+      AsyncStorage.setItem("mchat_last_alert_check", new Date().toISOString());
+    }
+  }, [loginAlerts]);
+
+  const revokeSession = async (id: number) => {
+    try {
+      await apiRequest(`/sessions/${id}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", "Could not revoke that session.");
+    }
+  };
+
+  const revokeAllOthers = async () => {
+    try {
+      await apiRequest("/sessions", { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Error", "Could not revoke sessions.");
+    }
+  };
 
   const unblockUser = async (userId: number, name: string) => {
     try {
@@ -191,6 +246,27 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+
+        {/* ── Login alert banner ── */}
+        {(loginAlerts?.length ?? 0) > 0 && !loginAlertDismissed && (
+          <Pressable
+            onPress={() => { setLoginAlertDismissed(true); setShowDevices(true); }}
+            style={{ margin: 16, marginBottom: 0, borderRadius: 14, backgroundColor: `${danger}18`, borderWidth: 1, borderColor: `${danger}44`, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}
+          >
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: `${danger}22`, alignItems: "center", justifyContent: "center" }}>
+              <Feather name="alert-triangle" size={18} color={danger} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: danger, fontFamily: "Inter_700Bold", fontSize: 14 }}>New login detected</Text>
+              <Text style={{ color: danger, fontFamily: "Inter_400Regular", fontSize: 12, opacity: 0.8, marginTop: 1 }}>
+                {loginAlerts!.length === 1
+                  ? `Login from ${loginAlerts![0].deviceName} · Tap to review`
+                  : `${loginAlerts!.length} new logins on other devices · Tap to review`}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={danger} />
+          </Pressable>
+        )}
         {/* Profile card */}
         <View style={{ marginTop: 20, marginHorizontal: 16 }}>
           <Pressable style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: surf, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: border, opacity: pressed ? 0.8 : 1 })} onPress={() => router.push("/my-profile")}>
@@ -232,7 +308,24 @@ export default function SettingsScreen() {
             onPress={() => setShowLastSeen(true)} />
           <Row icon="user-x" iconColor={danger} label="Blocked Contacts"
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{(blockedUsers?.length ?? 0) > 0 && <View style={{ backgroundColor: danger, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" }}>{blockedUsers!.length}</Text></View>}<Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowBlocked(true)} sep={false} />
+            onPress={() => setShowBlocked(true)} />
+          <Row
+            icon="smartphone"
+            iconColor={accent}
+            label="Logged-in Devices"
+            right={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {(loginAlerts?.length ?? 0) > 0 && !loginAlertDismissed && (
+                  <View style={{ backgroundColor: danger, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" }}>{loginAlerts!.length}</Text>
+                  </View>
+                )}
+                <Feather name="chevron-right" size={17} color={txtMut} />
+              </View>
+            }
+            onPress={() => { setShowDevices(true); setLoginAlertDismissed(true); }}
+            sep={false}
+          />
         </Section>
 
         <Section title="Chats">
@@ -374,6 +467,95 @@ export default function SettingsScreen() {
                 {settings.bubbleStyle === opt.key && <Feather name="check-circle" size={20} color={primary} />}
               </Pressable>
             ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Devices modal */}
+      <Modal visible={showDevices} animationType="slide" transparent onRequestClose={() => setShowDevices(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowDevices(false)}>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "85%" }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 6 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${accent}18`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="shield" size={20} color={accent} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt }}>Logged-in Devices</Text>
+                <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>
+                  {loadingSessions ? "Loading…" : `${sessions?.length ?? 0} active session${(sessions?.length ?? 0) !== 1 ? "s" : ""}`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: border, marginBottom: 16, marginTop: 8 }} />
+
+            {loadingSessions ? (
+              <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                <ActivityIndicator color={accent} />
+                <Text style={{ color: txtMut, fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 10 }}>Loading sessions…</Text>
+              </View>
+            ) : (
+              <>
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+                  {(sessions ?? []).map((s, i) => {
+                    const platformIcon = s.platform === "ios" ? "smartphone" : s.platform === "android" ? "smartphone" : s.platform === "macos" ? "monitor" : s.platform === "windows" ? "monitor" : "globe";
+                    const timeSince = (dt: string) => {
+                      const diff = Date.now() - new Date(dt).getTime();
+                      if (diff < 60000) return "just now";
+                      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                      return `${Math.floor(diff / 86400000)}d ago`;
+                    };
+                    return (
+                      <View key={s.id} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderBottomWidth: i < (sessions!.length - 1) ? 1 : 0, borderBottomColor: border }}>
+                        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: s.isCurrent ? `${accent}22` : `${primary}14`, alignItems: "center", justifyContent: "center" }}>
+                          <Feather name={platformIcon as any} size={20} color={s.isCurrent ? accent : txtMut} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{s.deviceName}</Text>
+                            {s.isCurrent && (
+                              <View style={{ backgroundColor: `${accent}22`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ color: accent, fontSize: 10, fontFamily: "Inter_700Bold" }}>THIS DEVICE</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                            {s.ipAddress ? `${s.ipAddress} · ` : ""}{timeSince(s.lastActiveAt)}
+                          </Text>
+                        </View>
+                        {!s.isCurrent && (
+                          <Pressable
+                            onPress={() => Alert.alert("Sign Out Device", `Sign out of ${s.deviceName}?`, [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Sign Out", style: "destructive", onPress: () => revokeSession(s.id) },
+                            ])}
+                            style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: pressed ? `${danger}30` : `${danger}14`, borderWidth: 1, borderColor: `${danger}33` })}
+                          >
+                            <Text style={{ color: danger, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Sign Out</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                {(sessions ?? []).filter(s => !s.isCurrent).length > 1 && (
+                  <Pressable
+                    onPress={() => Alert.alert("Sign Out All Other Devices", "This will sign out all other sessions.", [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Sign Out All", style: "destructive", onPress: revokeAllOthers },
+                    ])}
+                    style={{ marginTop: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: `${danger}14`, borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: `${danger}33` }}
+                  >
+                    <Feather name="log-out" size={16} color={danger} />
+                    <Text style={{ color: danger, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>Sign Out All Other Devices</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
           </View>
         </Pressable>
       </Modal>

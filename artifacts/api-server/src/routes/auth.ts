@@ -1,13 +1,26 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
+import { usersTable, userSessionsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { parseDevice } from "../utils/parseDevice";
 
 const router: IRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "mchat-secret-key-2024";
+
+function makeJti() {
+  return randomBytes(32).toString("hex");
+}
+
+async function recordSession(userId: number, jti: string, req: { headers: Record<string, string | string[] | undefined>; ip?: string }) {
+  const ua = (req.headers["user-agent"] as string) ?? "";
+  const { deviceName, platform } = parseDevice(ua);
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? null;
+  await db.insert(userSessionsTable).values({ userId, jti, deviceName, platform, ipAddress: ip }).onConflictDoNothing();
+}
 
 router.post("/register", async (req, res) => {
   const { username, password, displayName, avatarUrl } = req.body as {
@@ -43,7 +56,9 @@ router.post("/register", async (req, res) => {
     isOwner: false,
   }).returning();
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
+  const jti = makeJti();
+  const token = jwt.sign({ userId: user.id, jti }, JWT_SECRET, { expiresIn: "30d" });
+  await recordSession(user.id, jti, req as any);
 
   res.json({
     token,
@@ -78,7 +93,9 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
+  const jti = makeJti();
+  const token = jwt.sign({ userId: user.id, jti }, JWT_SECRET, { expiresIn: "30d" });
+  await recordSession(user.id, jti, req as any);
 
   res.json({
     token,
