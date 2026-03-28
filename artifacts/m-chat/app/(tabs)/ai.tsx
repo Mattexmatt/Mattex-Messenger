@@ -151,11 +151,12 @@ export default function AIScreen() {
             blurOnSubmit={false}
           />
           <TouchableOpacity
-            style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, { opacity: !input.trim() || loading ? 0.4 : 1 }]}
             onPress={sendMessage}
             disabled={!input.trim() || loading}
+            activeOpacity={0.7}
           >
-            <Ionicons name="arrow-up" size={20} color={!input.trim() || loading ? theme.textMuted : theme.background} />
+            <Ionicons name="send" size={18} color={theme.background} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -235,11 +236,11 @@ function makeStyles(theme: any) {
       alignItems: "flex-end",
       gap: 8,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingTop: 10,
+      paddingBottom: 12,
       borderTopWidth: 1,
       borderTopColor: theme.border,
       backgroundColor: theme.surface,
-      paddingBottom: Platform.OS === "ios" ? 24 : 10,
     },
     input: {
       flex: 1,
