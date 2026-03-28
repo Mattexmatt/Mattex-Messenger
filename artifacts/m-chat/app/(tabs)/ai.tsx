@@ -6,11 +6,10 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  SafeAreaView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { apiRequest } from "@/utils/api";
@@ -29,6 +28,7 @@ const WELCOME: Message = {
 
 export default function AIScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,7 +98,8 @@ export default function AIScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.headerAvatar}>
@@ -111,68 +112,68 @@ export default function AIScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
-      >
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          onContentSizeChange={scrollToBottom}
-          showsVerticalScrollIndicator={false}
-        />
+      {/* Messages */}
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(m) => m.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        onContentSizeChange={scrollToBottom}
+        showsVerticalScrollIndicator={false}
+        style={styles.messageList}
+      />
 
-        {loading && (
-          <View style={styles.typingRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>✦</Text>
-            </View>
-            <View style={[styles.bubble, styles.bubbleAI, styles.typingBubble]}>
-              <ActivityIndicator size="small" color={theme.primary} />
-            </View>
+      {/* Typing indicator */}
+      {loading && (
+        <View style={styles.typingRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>✦</Text>
           </View>
-        )}
-
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask Mattex AI anything..."
-            placeholderTextColor={theme.textMuted}
-            multiline
-            maxLength={2000}
-            returnKeyType="send"
-            onSubmitEditing={sendMessage}
-            blurOnSubmit={false}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, { opacity: !input.trim() || loading ? 0.4 : 1 }]}
-            onPress={sendMessage}
-            disabled={!input.trim() || loading}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="send" size={18} color={theme.background} />
-          </TouchableOpacity>
+          <View style={[styles.bubble, styles.bubbleAI, styles.typingBubble]}>
+            <ActivityIndicator size="small" color={theme.primary} />
+          </View>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      )}
+
+      {/* Input bar */}
+      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <TextInput
+          style={styles.input}
+          value={input}
+          onChangeText={setInput}
+          placeholder="Ask Mattex AI anything..."
+          placeholderTextColor={theme.textMuted}
+          multiline
+          maxLength={2000}
+          returnKeyType="send"
+          onSubmitEditing={Platform.OS !== "web" ? sendMessage : undefined}
+          blurOnSubmit={false}
+        />
+        <TouchableOpacity
+          style={[styles.sendBtn, { opacity: !input.trim() || loading ? 0.4 : 1 }]}
+          onPress={sendMessage}
+          disabled={!input.trim() || loading}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="send" size={18} color={theme.background} />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 function makeStyles(theme: any) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: theme.background },
-    flex: { flex: 1 },
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+      flexDirection: "column",
+    },
 
     header: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
       paddingHorizontal: 16,
       paddingVertical: 12,
       borderBottomWidth: 1,
@@ -192,6 +193,7 @@ function makeStyles(theme: any) {
     headerTitle: { fontSize: 16, fontWeight: "700", color: theme.text, fontFamily: "Inter_700Bold" },
     headerSub: { fontSize: 11, color: theme.textMuted, fontFamily: "Inter_400Regular" },
 
+    messageList: { flex: 1 },
     list: { padding: 16, gap: 12, paddingBottom: 8 },
 
     row: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 4 },
@@ -228,7 +230,13 @@ function makeStyles(theme: any) {
     bubbleTextAI: { color: theme.text, fontFamily: "Inter_400Regular" },
     bubbleTextUser: { color: theme.background, fontFamily: "Inter_400Regular" },
 
-    typingRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, marginBottom: 4 },
+    typingRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 8,
+      paddingHorizontal: 16,
+      marginBottom: 4,
+    },
     typingBubble: { paddingVertical: 12, paddingHorizontal: 16 },
 
     inputBar: {
@@ -237,7 +245,6 @@ function makeStyles(theme: any) {
       gap: 8,
       paddingHorizontal: 12,
       paddingTop: 10,
-      paddingBottom: 12,
       borderTopWidth: 1,
       borderTopColor: theme.border,
       backgroundColor: theme.surface,
@@ -251,18 +258,18 @@ function makeStyles(theme: any) {
       fontSize: 15,
       color: theme.text,
       maxHeight: 120,
+      minHeight: 44,
       borderWidth: 1,
       borderColor: theme.border,
       fontFamily: "Inter_400Regular",
     },
     sendBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: theme.primary,
       alignItems: "center",
       justifyContent: "center",
     },
-    sendBtnDisabled: { backgroundColor: theme.surfaceElevated },
   });
 }
