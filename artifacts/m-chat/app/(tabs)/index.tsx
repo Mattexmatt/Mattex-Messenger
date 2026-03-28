@@ -79,13 +79,13 @@ function PeopleModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-        <View style={{
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={onClose}>
+        <Pressable style={{
           backgroundColor: theme.background,
           borderTopLeftRadius: 24, borderTopRightRadius: 24,
           paddingBottom: insets.bottom + 20,
           maxHeight: "92%",
-        }}>
+        }} onPress={(e) => e.stopPropagation?.()}>
           {/* Handle */}
           <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border }} />
@@ -195,8 +195,8 @@ function PeopleModal({
               }
             />
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

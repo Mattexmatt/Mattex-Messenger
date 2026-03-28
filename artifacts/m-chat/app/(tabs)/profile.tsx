@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import {
   View, Text, Pressable, ScrollView, Modal, TextInput,
   Platform, Image, Alert, ActivityIndicator, Animated,
-  Dimensions, KeyboardAvoidingView
+  KeyboardAvoidingView, useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -13,8 +13,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/utils/api";
 import * as Haptics from "expo-haptics";
-
-const { width: SCREEN_W } = Dimensions.get("window");
 
 // ─── Text Status Background Presets ───────────────────────────────────────────
 const TEXT_BACKGROUNDS: { key: string; colors: [string, string] }[] = [
@@ -127,6 +125,7 @@ function StoryViewer({ groups, startGroupIdx, onClose, theme }: {
   groups: StoryGroup[]; startGroupIdx: number; onClose: () => void; theme: any;
 }) {
   const insets = useSafeAreaInsets();
+  const { width: SCREEN_W } = useWindowDimensions();
   const [groupIdx, setGroupIdx] = useState(startGroupIdx);
   const [itemIdx, setItemIdx] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;

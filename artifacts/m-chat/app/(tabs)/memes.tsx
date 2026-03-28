@@ -192,8 +192,9 @@ export default function MemesScreen() {
       )}
 
       <Modal visible={showPost} animationType="slide" transparent onRequestClose={() => setShowPost(false)}>
-        <View style={s.modal}>
-          <View style={s.sheet}>
+        <Pressable style={s.modal} onPress={() => setShowPost(false)}>
+          <Pressable style={s.sheet} onPress={(e) => e.stopPropagation?.()}>
+
             <View style={s.grabber} />
             <Text style={s.sheetTitle}>Post a Meme</Text>
             <Text style={s.inputLabel}>Image URL</Text>
@@ -221,8 +222,8 @@ export default function MemesScreen() {
             <Pressable style={s.cancelBtn} onPress={() => setShowPost(false)}>
               <Text style={s.cancelText}>Cancel</Text>
             </Pressable>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

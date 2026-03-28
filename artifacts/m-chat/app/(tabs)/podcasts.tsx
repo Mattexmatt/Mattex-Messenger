@@ -215,8 +215,8 @@ export default function PodcastsScreen() {
       )}
 
       <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
-        <View style={s.modal}>
-          <View style={s.sheet}>
+        <Pressable style={s.modal} onPress={() => setShowAdd(false)}>
+          <Pressable style={s.sheet} onPress={(e) => e.stopPropagation?.()}>
             <View style={s.grabber} />
             <Text style={s.sheetTitle}>Add Podcast Episode</Text>
             <Text style={s.inputLabel}>Title</Text>
@@ -231,8 +231,8 @@ export default function PodcastsScreen() {
             <Pressable style={s.cancelBtn} onPress={() => setShowAdd(false)}>
               <Text style={s.cancelText}>Cancel</Text>
             </Pressable>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
