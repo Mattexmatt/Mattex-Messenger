@@ -19,6 +19,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "photo", selected: "photo.fill" }} />
         <Label>Memes</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="ai">
+        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
+        <Label>Mattex AI</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="podcasts">
         <Icon sf={{ default: "headphones", selected: "headphones" }} />
         <Label>Podcasts</Label>
@@ -72,6 +76,14 @@ function ClassicTabLayout() {
           title: "Memes",
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="photo" tintColor={color} size={24} /> : <Ionicons name="images-outline" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ai"
+        options={{
+          title: "Mattex AI",
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="sparkles" tintColor={color} size={24} /> : <Ionicons name="sparkles-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
