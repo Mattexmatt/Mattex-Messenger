@@ -4,7 +4,6 @@ import {
   Platform, Image, Alert, ActivityIndicator, Animated,
   Dimensions, KeyboardAvoidingView
 } from "react-native";
-import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -698,44 +697,18 @@ export default function StatusScreen() {
 
         {/* ── Empty state ── */}
         {!isLoading && contactGroups.length === 0 && (
-          <View style={{ paddingHorizontal: 24, paddingTop: 40, alignItems: "center", gap: 14 }}>
-            <View style={{ width: 88, height: 88, borderRadius: 44, overflow: "hidden" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingTop: 20 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, overflow: "hidden" }}>
               <LinearGradient colors={IG_GRADIENT} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="images-outline" size={40} color="#fff" />
+                <Ionicons name="images-outline" size={22} color="#fff" />
               </LinearGradient>
             </View>
-            <Text style={{ color: txt, fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" }}>No updates yet</Text>
-            <Text style={{ color: txtMut, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 21 }}>
-              Be the first to share! Photos, videos, or text disappear in 24 hours.
-            </Text>
-            <Pressable
-              onPress={() => setShowAdd(true)}
-              style={({ pressed }) => ({ marginTop: 6, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 28, overflow: "hidden", opacity: pressed ? 0.85 : 1 })}
-            >
-              <LinearGradient colors={IG_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: "absolute", inset: 0, top: 0, left: 0, right: 0, bottom: 0 }} />
-              <Text style={{ color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" }}>Add Story</Text>
-            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: txt, fontSize: 14, fontFamily: "Inter_600SemiBold" }}>No updates from contacts</Text>
+              <Text style={{ color: txtMut, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 }}>Stories disappear after 24 hours</Text>
+            </View>
           </View>
         )}
-
-        {/* ── Quick actions (Profile / Settings) ── */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 32 }}>
-          <View style={{ height: 1, backgroundColor: border, marginBottom: 20 }} />
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable style={({ pressed }) => ({ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 16, alignItems: "center", gap: 8, borderWidth: 1, borderColor: border, opacity: pressed ? 0.8 : 1 })} onPress={() => router.push("/my-profile")}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center" }}>
-                <Feather name="user" size={20} color={primary} />
-              </View>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: txt }}>Profile</Text>
-            </Pressable>
-            <Pressable style={({ pressed }) => ({ flex: 1, backgroundColor: surf, borderRadius: 16, padding: 16, alignItems: "center", gap: 8, borderWidth: 1, borderColor: border, opacity: pressed ? 0.8 : 1 })} onPress={() => router.push("/settings")}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${theme.success}22`, alignItems: "center", justifyContent: "center" }}>
-                <Feather name="settings" size={20} color={theme.success} />
-              </View>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: txt }}>Settings</Text>
-            </Pressable>
-          </View>
-        </View>
       </ScrollView>
 
       <AddStatusModal visible={showAdd} onClose={() => setShowAdd(false)} onAdded={() => { queryClient.invalidateQueries({ queryKey: ["statuses"] }); refetch(); }} theme={theme} insets={insets} />
