@@ -48,7 +48,6 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
   const { ne } = await import("drizzle-orm");
 
   if (!q || !q.trim()) {
-    // Return all users (for browsing) when no query
     const users = await db.select().from(usersTable)
       .where(ne(usersTable.id, req.userId!))
       .limit(100);
@@ -61,6 +60,14 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
     .limit(20);
 
   res.json(users.filter(u => u.id !== req.userId).map(formatUser));
+});
+
+router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(formatUser(user));
 });
 
 export default router;

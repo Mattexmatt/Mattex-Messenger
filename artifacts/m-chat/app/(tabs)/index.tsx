@@ -270,7 +270,7 @@ export default function ChatsScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       setSearch(""); setSearchResults([]);
-      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: otherUser.displayName, username: otherUser.username, userId: otherUser.id } });
+      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: otherUser.displayName, username: otherUser.username, userId: otherUser.id, avatarUrl: otherUser.avatarUrl ?? "" } });
     } catch (e) { console.error(e); }
   };
 
@@ -414,7 +414,7 @@ export default function ChatsScreen() {
                 paddingHorizontal: 20, paddingVertical: 12, gap: 14,
                 opacity: pressed ? 0.75 : 1,
               })}
-              onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id } })}
+              onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "" } })}
             >
               <AvatarCircle user={item.otherUser} size={56} theme={theme} />
               <View style={{ flex: 1, minWidth: 0 }}>

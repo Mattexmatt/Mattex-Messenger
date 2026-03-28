@@ -298,7 +298,7 @@ export default function ChatScreen() {
   const { theme } = useTheme();
   const { user, token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { id, name, username, userId: otherUserIdParam } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string }>();
+  const { id, name, username, userId: otherUserIdParam, avatarUrl } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string; avatarUrl: string }>();
   const otherUserId = otherUserIdParam ? parseInt(otherUserIdParam, 10) : null;
 
   const [text, setText] = useState("");
@@ -696,9 +696,18 @@ export default function ChatScreen() {
         <Pressable style={{ padding: 6 }} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${theme.primary}33`, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: `${theme.primary}66` }}>
-          <Text style={{ color: theme.primary, fontSize: 17, fontFamily: "Inter_700Bold" }}>{(name ?? "?")[0].toUpperCase()}</Text>
-        </View>
+        <Pressable
+          onPress={() => router.push({ pathname: "/user/[id]", params: { id: otherUserId, name, username, avatarUrl: avatarUrl ?? "" } })}
+          style={{ borderRadius: 20 }}
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: `${theme.primary}66` }} />
+          ) : (
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${theme.primary}33`, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: `${theme.primary}66` }}>
+              <Text style={{ color: theme.primary, fontSize: 17, fontFamily: "Inter_700Bold" }}>{(name ?? "?")[0].toUpperCase()}</Text>
+            </View>
+          )}
+        </Pressable>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{name}</Text>
