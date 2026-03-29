@@ -11,6 +11,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
+import UserBadge from "@/components/UserBadge";
 
 const HOBBY_COLORS = [
   "#FF6B9D", "#C77DFF", "#4FC3F7", "#52B788",
@@ -205,12 +206,9 @@ export default function MyProfileScreen() {
 
           <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: txt, marginTop: 16 }}>{user.displayName}</Text>
           <Text style={{ fontSize: 15, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 4 }}>@{user.username}</Text>
-
-          {user.isOwner && (
-            <View style={{ marginTop: 10, backgroundColor: primary, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 10 }}>
-              <Text style={{ color: bg, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Owner · Allan Matt Tech</Text>
-            </View>
-          )}
+          <View style={{ marginTop: 10 }}>
+            <UserBadge isOwner={user.isOwner} role={user.role} size="lg" />
+          </View>
         </LinearGradient>
 
         {/* Bio */}
