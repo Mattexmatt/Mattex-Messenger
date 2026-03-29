@@ -85,7 +85,7 @@ JWT secret: `JWT_SECRET` env var (default: `mchat-secret-key-2024`)
 - `conversations.ts` — GET /conversations, POST /conversations
 - `messages.ts` — GET /messages/:convId, POST /messages
 - `podcasts.ts` — GET /podcasts, POST /podcasts (owner only)
-- `memes.ts` — GET /memes, POST /memes, POST /memes/:id/like, DELETE /memes/:id/like
+- `memes.ts` — GET /memes, POST /memes, POST /memes/:id/like; owner: DELETE /memes/:id (remove), PATCH /memes/:id/flag, POST /memes/:userId/warn (auto-ban @3), PATCH /memes/:userId/ban
 - `statuses.ts` — GET /statuses, GET /statuses/mine, POST /statuses, DELETE /statuses/:id (image/video stories, 24h expiry)
 
 **Important**: Use `import { z } from "zod"` (not `zod/v4`) — workspace uses zod v3.

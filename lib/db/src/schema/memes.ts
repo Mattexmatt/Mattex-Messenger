@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, unique, boolean } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const memesTable = pgTable("memes", {
@@ -6,6 +6,8 @@ export const memesTable = pgTable("memes", {
   authorId: integer("author_id").notNull().references(() => usersTable.id),
   imageUrl: text("image_url").notNull(),
   caption: text("caption"),
+  status: text("status", { enum: ["active", "flagged", "removed"] }).notNull().default("active"),
+  isOfficial: boolean("is_official").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
