@@ -26,13 +26,15 @@ interface Message {
   conversationId: number;
   senderId: number;
   content: string;
-  type: "text" | "audio" | "image" | "video";
+  type: "text" | "audio" | "image" | "video" | "call";
   isDeleted?: number;
   deletedForIds?: string;
   spamFlag?: string | null;
   spamReason?: string | null;
   readAt?: string | null;
   starredBy?: string | null;
+  viewOnce?: number;
+  viewedBy?: string | null;
   createdAt: string;
   sender?: { id: number; displayName: string; avatarUrl?: string | null };
 }
@@ -414,6 +416,7 @@ interface PreviewAsset {
   type: "image" | "video";
   hdMode: boolean;
   caption: string;
+  viewOnce: boolean;
 }
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
@@ -492,6 +495,12 @@ export default function ChatScreen() {
   const [showAttach, setShowAttach] = useState(false);
   // Image/Video preview before send
   const [previewAsset, setPreviewAsset] = useState<PreviewAsset | null>(null);
+  // Upload progress (0-100) for pending sends
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // Full-screen image viewer after send/receive
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
+  // View-once viewed IDs (for this session)
+  const [sessionViewed, setSessionViewed] = useState<Set<number>>(new Set());
 
   const toggleBlock = useCallback(() => {
     if (!otherUserId) return;
@@ -719,10 +728,10 @@ export default function ChatScreen() {
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         if (mediaType === "video") {
-          setPreviewAsset({ uri: asset.uri, type: "video", hdMode: false, caption: "" });
+          setPreviewAsset({ uri: asset.uri, type: "video", hdMode: false, caption: "", viewOnce: false });
         } else if (asset.base64) {
           const uri = `data:image/jpeg;base64,${asset.base64}`;
-          setPreviewAsset({ uri, type: "image", hdMode: false, caption: "" });
+          setPreviewAsset({ uri, type: "image", hdMode: false, caption: "", viewOnce: false });
         }
       }
     } catch { Alert.alert("Error", "Could not attach media"); }
@@ -730,28 +739,33 @@ export default function ChatScreen() {
 
   const sendPreviewAsset = useCallback(async () => {
     if (!previewAsset) return;
+    const assetCopy = { ...previewAsset };
     setPreviewAsset(null);
     setSending(true);
+    // Generate a temp key for upload progress
+    const progressKey = `upload-${Date.now()}`;
+    setUploadProgress(p => ({ ...p, [progressKey]: 0 }));
+    // Simulate progress stages
+    const progressInterval = setInterval(() => {
+      setUploadProgress(p => {
+        const cur = p[progressKey] ?? 0;
+        if (cur >= 90) { clearInterval(progressInterval); return p; }
+        return { ...p, [progressKey]: cur + Math.random() * 15 };
+      });
+    }, 200);
     try {
-      if (previewAsset.type === "image") {
-        let content = previewAsset.uri;
-        // If not HD, re-compress (it's already base64, just send it)
-        if (previewAsset.caption.trim()) {
-          // Send image first, then caption
+      if (assetCopy.type === "image") {
+        let content = assetCopy.uri;
+        await apiRequest(`/conversations/${id}/messages`, {
+          method: "POST", body: JSON.stringify({ content, type: "image", viewOnce: assetCopy.viewOnce ? 1 : 0 }),
+        });
+        if (assetCopy.caption.trim()) {
           await apiRequest(`/conversations/${id}/messages`, {
-            method: "POST", body: JSON.stringify({ content, type: "image" }),
-          });
-          await apiRequest(`/conversations/${id}/messages`, {
-            method: "POST", body: JSON.stringify({ content: previewAsset.caption, type: "text" }),
-          });
-        } else {
-          await apiRequest(`/conversations/${id}/messages`, {
-            method: "POST", body: JSON.stringify({ content, type: "image" }),
+            method: "POST", body: JSON.stringify({ content: assetCopy.caption, type: "text" }),
           });
         }
       } else {
-        // Video: read as base64 and send (for native only; on web just show URL)
-        let content = previewAsset.uri;
+        let content = assetCopy.uri;
         if (Platform.OS !== "web" && !content.startsWith("data:")) {
           try {
             const b64 = await FileSystem.readAsStringAsync(content, { encoding: FileSystem.EncodingType.Base64 });
@@ -759,18 +773,23 @@ export default function ChatScreen() {
           } catch {}
         }
         await apiRequest(`/conversations/${id}/messages`, {
-          method: "POST", body: JSON.stringify({ content, type: "video" }),
+          method: "POST", body: JSON.stringify({ content, type: "video", viewOnce: assetCopy.viewOnce ? 1 : 0 }),
         });
-        if (previewAsset.caption.trim()) {
+        if (assetCopy.caption.trim()) {
           await apiRequest(`/conversations/${id}/messages`, {
-            method: "POST", body: JSON.stringify({ content: previewAsset.caption, type: "text" }),
+            method: "POST", body: JSON.stringify({ content: assetCopy.caption, type: "text" }),
           });
         }
       }
+      clearInterval(progressInterval);
+      setUploadProgress(p => ({ ...p, [progressKey]: 100 }));
+      setTimeout(() => setUploadProgress(p => { const n = { ...p }; delete n[progressKey]; return n; }), 800);
       queryClient.invalidateQueries({ queryKey: ["messages", id] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       playSendSound();
     } catch {
+      clearInterval(progressInterval);
+      setUploadProgress(p => { const n = { ...p }; delete n[progressKey]; return n; });
       Alert.alert("Error", "Failed to send media");
     } finally {
       setSending(false);
@@ -800,14 +819,27 @@ export default function ChatScreen() {
   };
 
   const deleteMsg = useCallback(async (msgId: number, scope: "me" | "all") => {
+    setReactionPickerMsg(null);
+    // Optimistic update
+    queryClient.setQueryData(["messages", id], (old: Message[] | undefined) => {
+      if (!old) return old;
+      return old.map(m => {
+        if (m.id !== msgId) return m;
+        if (scope === "all") return { ...m, isDeleted: 1, content: "" };
+        const existing = (m.deletedForIds ?? "").split(",").filter(Boolean);
+        if (!existing.includes(String(user?.id))) existing.push(String(user?.id ?? ""));
+        return { ...m, deletedForIds: existing.join(",") };
+      });
+    });
     try {
       await apiRequest(`/conversations/${id}/messages/${msgId}?scope=${scope}`, { method: "DELETE" });
       queryClient.invalidateQueries({ queryKey: ["messages", id] });
       if (appSettings.vibrationEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } catch {
+      queryClient.invalidateQueries({ queryKey: ["messages", id] });
       Alert.alert("Error", "Could not delete message");
     }
-  }, [id, queryClient, appSettings]);
+  }, [id, queryClient, appSettings, user]);
 
   const r = getBubbleRadius(appSettings.bubbleStyle);
   const fs = getFontSize(appSettings.fontSize);
@@ -933,27 +965,81 @@ export default function ChatScreen() {
 
                     {item.type === "audio" ? (
                       <AudioBubble content={item.content} isOwn={isOwn} theme={theme} />
+                    ) : item.type === "call" ? (
+                      (() => {
+                        let callMeta: { type: string; status: string; duration?: number } = { type: "audio", status: "missed" };
+                        try { callMeta = JSON.parse(item.content); } catch {}
+                        const isMissed = callMeta.status === "missed";
+                        const callColor = isMissed ? "#ef4444" : "#22c55e";
+                        return (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minWidth: 160 }}>
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: `${callColor}20`, alignItems: "center", justifyContent: "center" }}>
+                              <Feather name={callMeta.type === "video" ? "video" : "phone"} size={16} color={callColor} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: isOwn ? "#fff" : theme.text }}>
+                                {callMeta.type === "video" ? "Video call" : "Voice call"}
+                              </Text>
+                              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary }}>
+                                {isMissed ? "Missed" : callMeta.status === "rejected" ? "Declined" : callMeta.status === "cancelled" ? "Cancelled" : callMeta.duration ? `${Math.floor((callMeta.duration ?? 0) / 60)}:${String((callMeta.duration ?? 0) % 60).padStart(2, "0")}` : "Completed"}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })()
                     ) : item.type === "image" ? (
-                      <Image
-                        source={{ uri: item.content }}
-                        style={{ width: 220, height: 160, borderRadius: 10 }}
-                        resizeMode="cover"
-                      />
+                      (() => {
+                        const isViewOnce = item.viewOnce === 1;
+                        const hasViewed = isViewOnce && ((item.viewedBy ?? "").split(",").filter(Boolean).includes(String(user?.id)) || sessionViewed.has(item.id));
+                        if (isViewOnce && !isOwn && hasViewed) {
+                          return (
+                            <View style={{ width: 180, height: 48, borderRadius: 10, backgroundColor: `${theme.primary}18`, borderWidth: 1, borderColor: `${theme.primary}33`, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
+                              <Feather name="eye-off" size={16} color={theme.primary} />
+                              <Text style={{ fontSize: 13, color: theme.primary, fontFamily: "Inter_500Medium" }}>Viewed</Text>
+                            </View>
+                          );
+                        }
+                        return (
+                          <Pressable
+                            onPress={() => {
+                              if (isViewOnce && !isOwn) {
+                                setSessionViewed(s => new Set([...s, item.id]));
+                                apiRequest(`/conversations/${id}/messages/${item.id}/view`, { method: "POST" }).catch(() => {});
+                              }
+                              setViewerUri(item.content);
+                            }}
+                            style={{ position: "relative" }}
+                          >
+                            <Image
+                              source={{ uri: item.content }}
+                              style={{ width: 220, height: 160, borderRadius: 10 }}
+                              resizeMode="cover"
+                            />
+                            {isViewOnce && !hasViewed && (
+                              <View style={{ position: "absolute", bottom: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                <Feather name="eye" size={12} color="#fff" />
+                                <Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_500Medium" }}>View once</Text>
+                              </View>
+                            )}
+                          </Pressable>
+                        );
+                      })()
                     ) : item.type === "video" ? (
-                      <View style={{ width: 220, height: 160, borderRadius: 10, backgroundColor: "#000", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                        {Platform.OS === "web" ? (
-                          <video
-                            src={item.content}
-                            controls
-                            style={{ width: "100%", height: "100%", objectFit: "cover" as any, borderRadius: 10 } as any}
-                          />
-                        ) : (
-                          <>
-                            <Feather name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
-                            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4 }}>Video</Text>
-                          </>
-                        )}
-                      </View>
+                      <Pressable onPress={() => setViewerUri(item.content)}>
+                        <View style={{ width: 220, height: 160, borderRadius: 10, backgroundColor: "#000", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                          {Platform.OS === "web" ? (
+                            <video
+                              src={item.content}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" as any, borderRadius: 10 } as any}
+                            />
+                          ) : (
+                            <>
+                              <Feather name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4 }}>Video</Text>
+                            </>
+                          )}
+                        </View>
+                      </Pressable>
                     ) : (
                       <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? "#fff" : theme.text }}>
                         {mainContent}
@@ -1283,6 +1369,74 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* ── Upload progress overlay ─── */}
+      {Object.keys(uploadProgress).length > 0 && (
+        <View style={{ position: "absolute", bottom: 88, right: 16, left: 16, zIndex: 99, gap: 6, pointerEvents: "none" }}>
+          {Object.entries(uploadProgress).map(([key, pct]) => (
+            <View key={key} style={{ backgroundColor: isDark ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.92)", borderRadius: 12, padding: 10, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: theme.border }}>
+              <Feather name="image" size={16} color={theme.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: theme.text, marginBottom: 4 }}>
+                  {pct >= 100 ? "Sent!" : "Sending..."}
+                </Text>
+                <View style={{ height: 3, backgroundColor: theme.border, borderRadius: 2, overflow: "hidden" }}>
+                  <View style={{ height: 3, borderRadius: 2, backgroundColor: pct >= 100 ? "#22c55e" : theme.primary, width: `${Math.min(pct, 100)}%` }} />
+                </View>
+              </View>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: pct >= 100 ? "#22c55e" : theme.primary }}>
+                {Math.round(Math.min(pct, 100))}%
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ── Full-screen image/video viewer ─── */}
+      <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <Pressable
+            style={{ position: "absolute", top: insets.top + 10, right: 16, zIndex: 20, padding: 10, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20 }}
+            onPress={() => setViewerUri(null)}
+          >
+            <Feather name="x" size={22} color="#fff" />
+          </Pressable>
+          {viewerUri && (
+            viewerUri.startsWith("data:video") || viewerUri.includes(".mp4") ? (
+              Platform.OS === "web" ? (
+                <video
+                  src={viewerUri}
+                  controls
+                  autoPlay
+                  style={{ width: "100%", height: "100%", objectFit: "contain" } as any}
+                />
+              ) : (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="play-circle" size={72} color="rgba(255,255,255,0.6)" />
+                  <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 12, fontFamily: "Inter_400Regular" }}>Video preview</Text>
+                </View>
+              )
+            ) : (
+              <Image source={{ uri: viewerUri }} style={{ flex: 1 }} resizeMode="contain" />
+            )
+          )}
+          {/* Save / share actions */}
+          <View style={{ position: "absolute", bottom: insets.bottom + 24, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 24 }}>
+            <Pressable style={{ alignItems: "center", gap: 6 }} onPress={() => setViewerUri(null)}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="download" size={22} color="#fff" />
+              </View>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular" }}>Save</Text>
+            </Pressable>
+            <Pressable style={{ alignItems: "center", gap: 6 }} onPress={() => setViewerUri(null)}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="share-2" size={22} color="#fff" />
+              </View>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular" }}>Share</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── Media Preview Modal (WhatsApp-style) ─────────────────────────────── */}
       {previewAsset && (
         <Modal visible animationType="fade" transparent={false} onRequestClose={() => setPreviewAsset(null)}>
@@ -1312,9 +1466,21 @@ export default function ChatScreen() {
                 })}
               >
                 <Feather name="zap" size={13} color={previewAsset.hdMode ? "#22c55e" : "rgba(255,255,255,0.7)"} />
-                <Text style={{ color: previewAsset.hdMode ? "#22c55e" : "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
-                  HD
-                </Text>
+                <Text style={{ color: previewAsset.hdMode ? "#22c55e" : "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>HD</Text>
+              </Pressable>
+              {/* View once toggle */}
+              <Pressable
+                onPress={() => setPreviewAsset(p => p ? { ...p, viewOnce: !p.viewOnce } : null)}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6,
+                  borderRadius: 16, borderWidth: 1.5,
+                  borderColor: previewAsset.viewOnce ? "#a78bfa" : "rgba(255,255,255,0.4)",
+                  backgroundColor: previewAsset.viewOnce ? "#a78bfa22" : "transparent",
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Feather name="eye" size={13} color={previewAsset.viewOnce ? "#a78bfa" : "rgba(255,255,255,0.7)"} />
+                <Text style={{ color: previewAsset.viewOnce ? "#a78bfa" : "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>1x</Text>
               </Pressable>
             </View>
 

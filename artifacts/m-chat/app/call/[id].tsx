@@ -9,6 +9,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCall, ICE_SERVERS } from "@/context/CallContext";
+import { apiRequest } from "@/utils/api";
 import * as Haptics from "expo-haptics";
 
 // ─── Timer ─────────────────────────────────────────────────────────────────────
@@ -103,6 +104,9 @@ export default function CallScreen() {
   const [hasRemote, setHasRemote] = useState(false);
 
   const timerStr = useCallTimer(callState === "connected");
+  const callSecsRef = useRef(0);
+  const callStartRef = useRef<number | null>(null);
+  const callLogIdRef = useRef<number | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -111,7 +115,44 @@ export default function CallScreen() {
 
   const isWebRTC = Platform.OS === "web" && typeof RTCPeerConnection !== "undefined";
 
-  const hangup = useCallback((notifyRemote = true) => {
+  // Track call duration
+  useEffect(() => {
+    if (callState !== "connected") return;
+    callStartRef.current = Date.now();
+    const iv = setInterval(() => { callSecsRef.current += 1; }, 1000);
+    return () => clearInterval(iv);
+  }, [callState]);
+
+  const postCallLog = useCallback(async (status: "completed" | "missed" | "cancelled" | "rejected") => {
+    try {
+      const calleeId = incoming ? user?.id : otherId;
+      const callerId = incoming ? otherId : user?.id;
+      const duration = callSecsRef.current;
+      const log = await apiRequest("/calls", {
+        method: "POST",
+        body: JSON.stringify({ calleeId, type: isVideo ? "video" : "audio", status, duration }),
+      });
+      callLogIdRef.current = log.id;
+      // Also post a call message in the conversation - find conv first
+      try {
+        const convs = await apiRequest("/conversations");
+        const conv = convs.find((c: any) =>
+          (c.otherUser?.id === otherId)
+        );
+        if (conv) {
+          await apiRequest(`/conversations/${conv.id}/messages`, {
+            method: "POST",
+            body: JSON.stringify({
+              content: JSON.stringify({ type: isVideo ? "video" : "audio", status, duration }),
+              type: "call",
+            }),
+          });
+        }
+      } catch {}
+    } catch {}
+  }, [user, otherId, isVideo, incoming]);
+
+  const hangup = useCallback((notifyRemote = true, status?: "completed" | "missed" | "cancelled" | "rejected") => {
     if (hungUpRef.current) return;
     hungUpRef.current = true;
     if (notifyRemote) sendSignal(otherId, { type: "call-end" });
@@ -119,10 +160,12 @@ export default function CallScreen() {
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
+    const finalStatus = status ?? (callSecsRef.current > 0 ? "completed" : "cancelled");
+    postCallLog(finalStatus).catch(() => {});
     setCallState("ended");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     setTimeout(() => { if (router.canGoBack()) router.back(); }, 900);
-  }, [otherId, sendSignal]);
+  }, [otherId, sendSignal, postCallLog]);
 
   const buildPC = useCallback((): RTCPeerConnection => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS as RTCIceServer[] });
@@ -258,7 +301,7 @@ export default function CallScreen() {
         try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch {}
       } else if (msg.type === "call-reject") {
         Alert.alert("Call Declined", `${name ?? username} declined your call`);
-        hangup(false);
+        hangup(false, "rejected");
       } else if (msg.type === "call-end") {
         hangup(false);
       }

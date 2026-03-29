@@ -170,6 +170,8 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     spamReason: messagesTable.spamReason,
     readAt: messagesTable.readAt,
     starredBy: messagesTable.starredBy,
+    viewOnce: messagesTable.viewOnce,
+    viewedBy: messagesTable.viewedBy,
     createdAt: messagesTable.createdAt,
     sender: {
       id: usersTable.id,
@@ -245,9 +247,20 @@ router.delete("/:conversationId/messages/:messageId", requireAuth, async (req: A
   }
 });
 
+router.post("/:conversationId/messages/:messageId/view", requireAuth, async (req: AuthRequest, res) => {
+  const messageId = parseInt(req.params.messageId);
+  const userId = req.userId!;
+  const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+  const viewed = (msg.viewedBy ?? "").split(",").filter(Boolean);
+  if (!viewed.includes(String(userId))) viewed.push(String(userId));
+  await db.update(messagesTable).set({ viewedBy: viewed.join(",") }).where(eq(messagesTable.id, messageId));
+  res.json({ ok: true });
+});
+
 router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, res) => {
   const conversationId = parseInt(req.params.conversationId);
-  const { content, type = "text" } = req.body;
+  const { content, type = "text", viewOnce = 0 } = req.body;
 
   if (!content) {
     res.status(400).json({ error: "content required" });
@@ -260,6 +273,7 @@ router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, r
     senderId: req.userId!,
     content,
     type,
+    viewOnce: viewOnce ? 1 : 0,
     spamFlag: "none",
     spamReason: null,
   }).returning();

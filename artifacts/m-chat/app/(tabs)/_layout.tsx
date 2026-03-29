@@ -23,9 +23,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>Mattex AI</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="podcasts">
-        <Icon sf={{ default: "headphones", selected: "headphones" }} />
-        <Label>Podcasts</Label>
+      <NativeTabs.Trigger name="calls">
+        <Icon sf={{ default: "phone", selected: "phone.fill" }} />
+        <Label>Calls</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "dot.radiowaves.left.and.right", selected: "dot.radiowaves.left.and.right" }} />
@@ -87,11 +87,17 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="calls"
+        options={{
+          title: "Calls",
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="phone" tintColor={color} size={24} /> : <Feather name="phone" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="podcasts"
         options={{
-          title: "Podcasts",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="headphones" tintColor={color} size={24} /> : <Ionicons name="headset-outline" size={22} color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen
