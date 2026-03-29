@@ -25,7 +25,9 @@ async function getResendClient(): Promise<{ client: Resend; from: string } | nul
     const settings = data?.items?.[0]?.settings;
     if (!settings?.api_key) return null;
 
-    const from = settings.from_email ?? "M Chat <noreply@allanmatttech.com>";
+    // Wrap the from email with a friendly display name
+    const rawFrom = settings.from_email ?? "allanmatthias9@gmail.com";
+    const from = rawFrom.includes("<") ? rawFrom : `M Chat <${rawFrom}>`;
     return { client: new Resend(settings.api_key), from };
   } catch {
     return null;
