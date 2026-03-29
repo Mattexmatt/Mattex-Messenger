@@ -7,6 +7,9 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
+import { apiRequest } from "@/utils/api";
+import { useQuery } from "@tanstack/react-query";
 
 function NativeTabLayout() {
   return (
@@ -37,8 +40,17 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const { theme } = useTheme();
+  const { user, token } = useAuth();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  const { data: callLogs } = useQuery<any[]>({
+    queryKey: ["call-logs"],
+    queryFn: () => apiRequest("/calls"),
+    enabled: !!token,
+    refetchInterval: 15000,
+  });
+  const missedCount = callLogs?.filter(l => l.status === "missed" && l.calleeId === user?.id).length ?? 0;
 
   return (
     <Tabs
@@ -92,6 +104,8 @@ function ClassicTabLayout() {
           title: "Calls",
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="phone" tintColor={color} size={24} /> : <Feather name="phone" size={22} color={color} />,
+          tabBarBadge: missedCount > 0 ? missedCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: "#ef4444", fontSize: 11 },
         }}
       />
       <Tabs.Screen

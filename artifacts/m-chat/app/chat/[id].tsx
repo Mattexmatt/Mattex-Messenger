@@ -423,7 +423,7 @@ interface PreviewAsset {
 export default function ChatScreen() {
   const { theme } = useTheme();
   const { user, token } = useAuth();
-  const { sendSignal } = useCall();
+  const { sendSignal, onSignal } = useCall();
   const insets = useSafeAreaInsets();
   const { id, name, username, userId: otherUserIdParam, avatarUrl } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string; avatarUrl: string }>();
   const isDark = !!(theme as any).isDark;
@@ -537,6 +537,16 @@ export default function ChatScreen() {
     enabled: !!token && !!id,
     refetchInterval: 3000,
   });
+
+  // Listen for real-time chat-updated signals (e.g. delete-for-all from other side)
+  useEffect(() => {
+    const unsub = onSignal((msg: any) => {
+      if (msg.type === "chat-updated" && String(msg.conversationId) === String(id)) {
+        queryClient.invalidateQueries({ queryKey: ["messages", id, token] });
+      }
+    });
+    return unsub;
+  }, [onSignal, id, token, queryClient]);
 
   // Mark the other user's messages as read when we open the chat
   useEffect(() => {
@@ -833,13 +843,16 @@ export default function ChatScreen() {
     });
     try {
       await apiRequest(`/conversations/${id}/messages/${msgId}?scope=${scope}`, { method: "DELETE" });
-      queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["messages", id, token] });
+      if (scope === "all" && otherUserId) {
+        sendSignal(otherUserId, { type: "chat-updated", conversationId: id });
+      }
       if (appSettings.vibrationEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } catch {
-      queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["messages", id, token] });
       Alert.alert("Error", "Could not delete message");
     }
-  }, [id, queryClient, appSettings, user]);
+  }, [id, queryClient, appSettings, user, token, otherUserId, sendSignal]);
 
   const r = getBubbleRadius(appSettings.bubbleStyle);
   const fs = getFontSize(appSettings.fontSize);
@@ -963,9 +976,9 @@ export default function ChatScreen() {
                       </View>
                     )}
 
-                    {item.type === "audio" ? (
+                    {item.type === "audio" && !item.content.startsWith("{") ? (
                       <AudioBubble content={item.content} isOwn={isOwn} theme={theme} />
-                    ) : item.type === "call" ? (
+                    ) : (item.type === "call" || (item.content.startsWith("{") && item.content.includes('"status"'))) ? (
                       (() => {
                         let callMeta: { type: string; status: string; duration?: number } = { type: "audio", status: "missed" };
                         try { callMeta = JSON.parse(item.content); } catch {}

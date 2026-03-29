@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, FlatList, Pressable, ActivityIndicator,
-  RefreshControl, Image,
+  RefreshControl, Image, StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -170,22 +170,25 @@ export default function CallsTab() {
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       {/* Header */}
       <View style={{
-        paddingTop: insets.top + 12,
-        paddingBottom: 12,
+        paddingTop: Math.max(insets.top, 16) + 16,
+        paddingBottom: 14,
         paddingHorizontal: 20,
         backgroundColor: theme.background,
-        borderBottomWidth: 1,
+        borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: theme.border,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
       }}>
         <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: theme.text }}>Calls</Text>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <Pressable style={{ padding: 4 }}>
-            <Feather name="phone-missed" size={22} color={theme.primary} />
-          </Pressable>
-        </View>
+        {(logs?.filter(l => l.status === "missed" && l.calleeId === user?.id).length ?? 0) > 0 && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ef444415", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Feather name="phone-missed" size={14} color="#ef4444" />
+            <Text style={{ color: "#ef4444", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+              {logs!.filter(l => l.status === "missed" && l.calleeId === user?.id).length} missed
+            </Text>
+          </View>
+        )}
       </View>
 
       {isLoading ? (
@@ -212,20 +215,6 @@ export default function CallsTab() {
         />
       )}
 
-      {/* Missed calls badge */}
-      {(logs?.filter(l => l.status === "missed" && l.calleeId === user?.id).length ?? 0) > 0 && (
-        <View style={{
-          position: "absolute", bottom: insets.bottom + 104, right: 20,
-          backgroundColor: "#ef4444", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
-          flexDirection: "row", alignItems: "center", gap: 6,
-          shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
-        }}>
-          <Feather name="phone-missed" size={14} color="#fff" />
-          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
-            {logs!.filter(l => l.status === "missed" && l.calleeId === user?.id).length} missed
-          </Text>
-        </View>
-      )}
     </View>
   );
 }

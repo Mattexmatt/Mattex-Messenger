@@ -161,11 +161,12 @@ export default function CallScreen() {
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
     const finalStatus = status ?? (callSecsRef.current > 0 ? "completed" : "cancelled");
-    postCallLog(finalStatus).catch(() => {});
+    // Only the caller (non-incoming) logs the call to avoid duplicate entries
+    if (!incoming) postCallLog(finalStatus).catch(() => {});
     setCallState("ended");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     setTimeout(() => { if (router.canGoBack()) router.back(); }, 900);
-  }, [otherId, sendSignal, postCallLog]);
+  }, [otherId, sendSignal, postCallLog, incoming]);
 
   const buildPC = useCallback((): RTCPeerConnection => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS as RTCIceServer[] });
@@ -223,8 +224,9 @@ export default function CallScreen() {
     if (incoming) return;
 
     if (!isWebRTC) {
-      setCallState("ringing");
-      return;
+      // Simulate ringing after brief calling delay (no real WebRTC on native)
+      const t = setTimeout(() => setCallState("ringing"), 1800);
+      return () => clearTimeout(t);
     }
 
     let mounted = true;
@@ -246,7 +248,7 @@ export default function CallScreen() {
         fromAvatar: user?.avatarUrl,
         offer: pc.localDescription,
       });
-      if (mounted) setCallState("ringing");
+      // Stay at "calling" until callee's device sends call-ringing back
     })();
 
     return () => { mounted = false; };
@@ -255,6 +257,9 @@ export default function CallScreen() {
   // Incoming call
   useEffect(() => {
     if (!incoming) return;
+
+    // Immediately signal back that the callee's device is ringing
+    sendSignal(otherId, { type: "call-ringing" });
 
     if (!isWebRTC) {
       setCallState("connected");
@@ -292,7 +297,9 @@ export default function CallScreen() {
     const unsub = onSignal(async (msg: any) => {
       const pc = pcRef.current;
 
-      if (msg.type === "call-answer" && msg.answer && pc) {
+      if (msg.type === "call-ringing") {
+        setCallState("ringing");
+      } else if (msg.type === "call-answer" && msg.answer && pc) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
           setCallState("connecting");
