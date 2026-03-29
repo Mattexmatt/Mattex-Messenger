@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -720,11 +721,17 @@ export default function StatusScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       {/* Header */}
-      <View style={{ paddingTop: insets.top + (Platform.OS === "web" ? 72 : 16), paddingHorizontal: 20, paddingBottom: 14, backgroundColor: theme.gradientTop, borderBottomWidth: 1, borderBottomColor: border }}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: txt }}>Updates</Text>
-          </View>
+      <View style={{ paddingTop: insets.top + (Platform.OS === "web" ? 72 : 16), paddingHorizontal: 16, paddingBottom: 14, backgroundColor: theme.gradientTop, borderBottomWidth: 1, borderBottomColor: border }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {/* WhatsApp-style back arrow */}
+          <Pressable
+            onPress={() => router.canGoBack() ? router.back() : router.navigate("/(tabs)" as any)}
+            style={{ padding: 8, marginLeft: -4, marginRight: 2 }}
+            hitSlop={8}
+          >
+            <Feather name="arrow-left" size={22} color={txt} />
+          </Pressable>
+          <Text style={{ flex: 1, fontSize: 26, fontFamily: "Inter_700Bold", color: txt }}>Updates</Text>
           <Pressable
             style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, backgroundColor: pressed ? `${primary}33` : `${primary}18`, alignItems: "center", justifyContent: "center" })}
             onPress={() => setShowAdd(true)}

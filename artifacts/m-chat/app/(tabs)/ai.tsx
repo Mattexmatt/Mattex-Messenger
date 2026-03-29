@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
@@ -148,6 +149,15 @@ export default function AIScreen() {
     <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 72 : 0) }]}>
       {/* Header */}
       <View style={styles.header}>
+        {/* WhatsApp-style back arrow */}
+        <Pressable
+          onPress={() => router.canGoBack() ? router.back() : router.navigate("/(tabs)" as any)}
+          style={{ padding: 8, marginLeft: -4, marginRight: 4 }}
+          hitSlop={8}
+        >
+          <Feather name="arrow-left" size={22} color={theme.text} />
+        </Pressable>
+
         <View style={styles.headerLeft}>
           <View style={styles.headerAvatar}>
             <Text style={styles.headerAvatarText}>✦</Text>
@@ -157,6 +167,7 @@ export default function AIScreen() {
             <Text style={styles.headerSub}>Personalised · History saved</Text>
           </View>
         </View>
+
         {/* Clear history button */}
         <Pressable
           onPress={clearHistory}

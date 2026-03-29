@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
@@ -185,7 +186,15 @@ export default function PodcastsScreen() {
   return (
     <View style={s.container}>
       <View style={s.header}>
-        <Text style={s.title}>Podcasts</Text>
+        {/* WhatsApp-style back arrow */}
+        <Pressable
+          onPress={() => router.canGoBack() ? router.back() : router.navigate("/(tabs)" as any)}
+          style={{ padding: 8, marginLeft: -8, marginRight: 4 }}
+          hitSlop={8}
+        >
+          <Feather name="arrow-left" size={22} color={theme.text} />
+        </Pressable>
+        <Text style={[s.title, { flex: 1 }]}>Podcasts</Text>
         {user?.isOwner && (
           <Pressable style={s.addBtn} onPress={() => setShowAdd(true)}>
             <Feather name="plus" size={20} color={theme.isDark ? "#000" : "#fff"} />
