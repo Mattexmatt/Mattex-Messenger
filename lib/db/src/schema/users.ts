@@ -19,6 +19,13 @@ export const usersTable = pgTable("users", {
   isOnline: boolean("is_online").notNull().default(false),
   lastSeenAt: timestamp("last_seen_at").defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // Email & security
+  email: text("email").unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerifyToken: text("email_verify_token"),
+  emailVerifyExpiry: timestamp("email_verify_expiry"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });

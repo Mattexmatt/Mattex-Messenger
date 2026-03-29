@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet,
-  ActivityIndicator, Dimensions, Image, Platform, ScrollView
+  ActivityIndicator, Dimensions, Image, Platform, ScrollView, Modal
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +29,28 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotDone, setForgotDone] = useState(false);
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail)) {
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await apiRequest("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      setForgotDone(true);
+    } catch {
+      setForgotDone(true); // show same success msg to prevent enumeration
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -116,6 +138,10 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
+        <Pressable onPress={() => { setShowForgot(true); setForgotDone(false); setForgotEmail(""); }} style={{ alignItems: "center", marginTop: 16 }}>
+          <Text style={{ color: TEXT_SUB, fontFamily: "Inter_400Regular", fontSize: 14 }}>Forgot password?</Text>
+        </Pressable>
+
         <View style={s.footer}>
           <Text style={s.footerText}>New here? </Text>
           <Pressable onPress={() => router.replace("/(auth)/register")}>
@@ -123,6 +149,55 @@ export default function LoginScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* Forgot Password Modal */}
+      <Modal visible={showForgot} animationType="slide" transparent onRequestClose={() => setShowForgot(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: SURFACE, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 24, paddingBottom: insets.bottom + 32 }}>
+            <View style={{ width: 40, height: 4, backgroundColor: BORDER, borderRadius: 2, alignSelf: "center", marginBottom: 24 }} />
+            {forgotDone ? (
+              <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#00CC4422", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                  <Feather name="check-circle" size={30} color={HACKER_GREEN} />
+                </View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 8 }}>Email Sent!</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SUB, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 }}>If an account with that email exists, a password reset link has been sent.</Text>
+                <Pressable onPress={() => setShowForgot(false)} style={{ marginTop: 24, backgroundColor: HACKER_GREEN, borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14 }}>
+                  <Text style={{ color: BG_DARK, fontFamily: "Inter_700Bold", fontSize: 15 }}>Done</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 6 }}>Reset Password</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SUB, fontFamily: "Inter_400Regular", marginBottom: 24, lineHeight: 20 }}>Enter your email address and we'll send you a link to reset your password.</Text>
+                <View style={[s.inputRow, { marginBottom: 20 }]}>
+                  <Feather name="mail" size={16} color={TEXT_MUTED} style={{ marginRight: 10 }} />
+                  <TextInput
+                    style={s.input}
+                    placeholder="your@email.com"
+                    placeholderTextColor={TEXT_MUTED}
+                    value={forgotEmail}
+                    onChangeText={setForgotEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+                <Pressable
+                  style={[s.btn, { opacity: forgotLoading ? 0.7 : 1 }]}
+                  onPress={handleForgotPassword}
+                  disabled={forgotLoading}
+                >
+                  {forgotLoading ? <ActivityIndicator color={BG_DARK} /> : <Text style={s.btnText}>SEND RESET LINK</Text>}
+                </Pressable>
+                <Pressable onPress={() => setShowForgot(false)} style={{ marginTop: 14, alignItems: "center" }}>
+                  <Text style={{ color: TEXT_MUTED, fontFamily: "Inter_400Regular", fontSize: 14 }}>Cancel</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

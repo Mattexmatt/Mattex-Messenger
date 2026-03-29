@@ -13,6 +13,8 @@ export interface UserData {
   statusUpdatedAt?: string | null;
   isOwner: boolean;
   role?: string;
+  email?: string | null;
+  emailVerified?: boolean;
   createdAt: string;
 }
 

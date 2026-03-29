@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View, Text, Pressable, ScrollView, TextInput,
   Modal, ActivityIndicator, Alert, Platform, Image
@@ -61,6 +61,7 @@ export default function MyProfileScreen() {
   const txtMut = theme.textMuted;
   const accent = theme.accent;
   const danger = theme.danger;
+  const isDark = !!(theme as any).isDark;
 
   const joinedDate = new Date(user?.createdAt ?? Date.now()).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const currentHobbies = parseHobbies(user?.hobbies);
@@ -158,6 +159,109 @@ export default function MyProfileScreen() {
       setSaving(false);
     }
   };
+
+  function EmailSecuritySection() {
+    const [showAddEmail, setShowAddEmail] = useState(false);
+    const [emailInput, setEmailInput] = useState("");
+    const [saving, setSavingEmail] = useState(false);
+    const hasEmail = !!(user as any)?.email;
+    const isVerified = !!(user as any)?.emailVerified;
+    const secDanger = (theme as any).danger ?? "#ef4444";
+    const success = (theme as any).success ?? "#22c55e";
+
+    const addEmail = async () => {
+      if (!emailInput.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+        Alert.alert("Invalid email", "Please enter a valid email address.");
+        return;
+      }
+      setSavingEmail(true);
+      try {
+        await apiRequest("/auth/add-email", { method: "POST", body: JSON.stringify({ email: emailInput.trim() }) });
+        updateUser({ ...user!, email: emailInput.trim(), emailVerified: false } as any);
+        setShowAddEmail(false);
+        Alert.alert("Email added!", "A verification link has been sent to your email. Check your inbox.");
+      } catch (e: any) {
+        Alert.alert("Error", e?.message ?? "Could not save email.");
+      } finally {
+        setSavingEmail(false);
+      }
+    };
+
+    const resendVerification = async () => {
+      try {
+        await apiRequest("/auth/resend-verification", { method: "POST" });
+        Alert.alert("Email sent!", "Check your inbox for the verification link.");
+      } catch (e: any) {
+        Alert.alert("Error", e?.message ?? "Could not resend.");
+      }
+    };
+
+    return (
+      <View style={{ marginHorizontal: 16, marginTop: 24, marginBottom: 8 }}>
+        <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_600SemiBold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, marginLeft: 4 }}>Email & Security</Text>
+        <View style={{ backgroundColor: surf, borderRadius: 14, borderWidth: 1, borderColor: border, overflow: "hidden" }}>
+          {hasEmail ? (
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 14 }}>
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: isVerified ? `${success}22` : `${primary}22`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name={isVerified ? "shield" : "mail"} size={17} color={isVerified ? success : primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ fontSize: 15, color: txt, fontFamily: "Inter_500Medium" }}>{(user as any).email}</Text>
+                  <View style={{ backgroundColor: isVerified ? `${success}22` : "#F59E0B22", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: isVerified ? success : "#F59E0B" }}>{isVerified ? "VERIFIED" : "UNVERIFIED"}</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>{isVerified ? "Email verified · Login alerts active" : "Check your inbox to verify"}</Text>
+              </View>
+              {!isVerified && (
+                <Pressable onPress={resendVerification} style={{ backgroundColor: `${primary}18`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 12, color: primary, fontFamily: "Inter_600SemiBold" }}>Resend</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : (
+            <Pressable onPress={() => setShowAddEmail(true)} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 14 }}>
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="mail" size={17} color={primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, color: primary, fontFamily: "Inter_500Medium" }}>Add email address</Text>
+                <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>For password recovery & login alerts</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={txtMut} />
+            </Pressable>
+          )}
+        </View>
+
+        <Modal visible={showAddEmail} animationType="slide" transparent onRequestClose={() => setShowAddEmail(false)}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowAddEmail(false)}>
+            <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 28 }} onStartShouldSetResponder={() => true}>
+              <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
+              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 6 }}>Add Email Address</Text>
+              <Text style={{ fontSize: 14, color: txtMut, fontFamily: "Inter_400Regular", marginBottom: 20 }}>Used for password recovery and login security alerts. We'll send a verification link.</Text>
+              <TextInput
+                style={{ backgroundColor: bg, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: txt, borderWidth: 1, borderColor: border, fontFamily: "Inter_400Regular", marginBottom: 16 }}
+                placeholder="your@email.com"
+                placeholderTextColor={txtMut}
+                value={emailInput}
+                onChangeText={setEmailInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable onPress={addEmail} disabled={saving} style={{ backgroundColor: primary, borderRadius: 14, height: 50, alignItems: "center", justifyContent: "center", opacity: saving ? 0.7 : 1 }}>
+                {saving ? <ActivityIndicator color={isDark ? "#000" : "#fff"} /> : <Text style={{ color: isDark ? "#000" : "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Send Verification</Text>}
+              </Pressable>
+              <Pressable onPress={() => setShowAddEmail(false)} style={{ marginTop: 12, alignItems: "center" }}>
+                <Text style={{ color: txtSec, fontSize: 15, fontFamily: "Inter_400Regular" }}>Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
+      </View>
+    );
+  }
 
   if (!user) return null;
 
@@ -305,6 +409,9 @@ export default function MyProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* Email & Security */}
+        <EmailSecuritySection />
       </ScrollView>
 
       {/* Edit Profile Modal */}

@@ -25,6 +25,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,12 +41,16 @@ export default function RegisterScreen() {
       setError("Passwords do not match");
       return;
     }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Please enter a valid email address");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const data = await apiRequest("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ username: username.trim(), displayName: displayName.trim(), password }),
+        body: JSON.stringify({ username: username.trim(), displayName: displayName.trim(), password, ...(email.trim() ? { email: email.trim() } : {}) }),
       });
       await login(data.token, data.user);
       router.replace("/(tabs)");
@@ -102,6 +107,21 @@ export default function RegisterScreen() {
             placeholderTextColor={TEXT_MUTED}
             value={username}
             onChangeText={setUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        <Text style={s.label}>Email <Text style={{ color: TEXT_MUTED, textTransform: "none", letterSpacing: 0 }}>(optional, for recovery)</Text></Text>
+        <View style={s.inputRow}>
+          <Feather name="mail" size={16} color={TEXT_MUTED} style={{ marginRight: 10 }} />
+          <TextInput
+            style={s.input}
+            placeholder="your@email.com"
+            placeholderTextColor={TEXT_MUTED}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
           />
