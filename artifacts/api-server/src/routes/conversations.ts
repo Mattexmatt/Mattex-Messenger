@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { conversationsTable, messagesTable, usersTable } from "@workspace/db/schema";
-import { eq, or, and, desc } from "drizzle-orm";
+import { eq, or, and, desc, ne, isNull, count } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import { detectSpam } from "../spamDetector";
 
@@ -23,6 +23,14 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       .orderBy(desc(messagesTable.createdAt))
       .limit(1);
 
+    // Count unread: messages from the other user that have not been read yet
+    const [{ value: unreadCount }] = await db.select({ value: count() }).from(messagesTable)
+      .where(and(
+        eq(messagesTable.conversationId, conv.id),
+        eq(messagesTable.senderId, otherUserId),
+        isNull(messagesTable.readAt),
+      ));
+
     result.push({
       id: conv.id,
       otherUser: {
@@ -43,6 +51,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         type: lastMessage.type,
         createdAt: lastMessage.createdAt,
       } : undefined,
+      unreadCount: Number(unreadCount),
       updatedAt: conv.updatedAt,
     });
   }
@@ -122,6 +131,7 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     deletedForIds: messagesTable.deletedForIds,
     spamFlag: messagesTable.spamFlag,
     spamReason: messagesTable.spamReason,
+    readAt: messagesTable.readAt,
     createdAt: messagesTable.createdAt,
     sender: {
       id: usersTable.id,
@@ -139,6 +149,22 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     .offset(offset);
 
   res.json(messages);
+});
+
+// Mark all messages from the other user as read (Seen)
+router.post("/:conversationId/read", requireAuth, async (req: AuthRequest, res) => {
+  const conversationId = parseInt(req.params.conversationId);
+  const userId = req.userId!;
+
+  await db.update(messagesTable)
+    .set({ readAt: new Date() })
+    .where(and(
+      eq(messagesTable.conversationId, conversationId),
+      ne(messagesTable.senderId, userId),
+      isNull(messagesTable.readAt),
+    ));
+
+  res.json({ ok: true });
 });
 
 // Delete a message

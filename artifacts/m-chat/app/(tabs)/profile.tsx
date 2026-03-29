@@ -754,103 +754,167 @@ export default function StatusScreen() {
           </ScrollView>
         </View>
 
-        <View style={{ height: 1, backgroundColor: border, marginTop: 14 }} />
-
-        {/* ── My Status card (WhatsApp-style) ── */}
+        {/* ── My Status card — elevated ── */}
         <Pressable
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: pressed ? `${primary}08` : "transparent" })}
-          onPress={() => setShowAdd(true)}
+          style={({ pressed }) => ({
+            marginHorizontal: 16, marginTop: 16, marginBottom: 4,
+            borderRadius: 18,
+            borderWidth: 1.5, borderColor: myGroup ? `${primary}55` : border,
+            backgroundColor: myGroup ? `${primary}0D` : surf,
+            padding: 16,
+            flexDirection: "row", alignItems: "center", gap: 14,
+            opacity: pressed ? 0.8 : 1,
+          })}
+          onPress={() => myGroup ? openViewer([myGroup], 0) : setShowAdd(true)}
         >
-          {/* Avatar with + ring */}
-          <View style={{ position: "relative" }}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={{ width: 54, height: 54, borderRadius: 27, borderWidth: 2, borderColor: myGroup ? primary : border }} />
+          {/* Avatar with gradient ring if has story */}
+          <View>
+            {myGroup ? (
+              <LinearGradient
+                colors={IG_GRADIENT} start={{ x: 0.2, y: 1 }} end={{ x: 1, y: 0.2 }}
+                style={{ width: 60, height: 60, borderRadius: 30, padding: 2.5, alignItems: "center", justifyContent: "center" }}
+              >
+                <View style={{ width: 55, height: 55, borderRadius: 27.5, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+                  {user?.avatarUrl ? (
+                    <Image source={{ uri: user.avatarUrl }} style={{ width: 51, height: 51, borderRadius: 25.5 }} />
+                  ) : (
+                    <View style={{ width: 51, height: 51, borderRadius: 25.5, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 21, color: primary, fontFamily: "Inter_700Bold" }}>{user?.displayName?.[0]?.toUpperCase() ?? "?"}</Text>
+                    </View>
+                  )}
+                </View>
+              </LinearGradient>
             ) : (
-              <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: `${primary}22`, borderWidth: 2, borderColor: myGroup ? primary : border, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 22, color: primary, fontFamily: "Inter_700Bold" }}>{user?.displayName?.[0]?.toUpperCase() ?? "?"}</Text>
+              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: `${primary}18`, borderWidth: 2, borderColor: border, alignItems: "center", justifyContent: "center" }}>
+                {user?.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+                ) : (
+                  <Text style={{ fontSize: 22, color: primary, fontFamily: "Inter_700Bold" }}>{user?.displayName?.[0]?.toUpperCase() ?? "?"}</Text>
+                )}
               </View>
             )}
-            <View style={{ position: "absolute", bottom: -1, right: -1, width: 20, height: 20, borderRadius: 10, backgroundColor: primary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: bg }}>
-              <Feather name="plus" size={10} color={bg} />
+            <View style={{ position: "absolute", bottom: -1, right: -1, width: 22, height: 22, borderRadius: 11, backgroundColor: primary, alignItems: "center", justifyContent: "center", borderWidth: 2.5, borderColor: surf }}>
+              <Feather name="plus" size={11} color={bg} />
             </View>
           </View>
+
+          {/* Info */}
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>My Status</Text>
-            <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>
-              {myGroup ? `${myGroup.items.length} update${myGroup.items.length > 1 ? "s" : ""} · tap to view` : "Tap to add a status update"}
+            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: txt }}>My Status</Text>
+            <Text style={{ fontSize: 13, color: myGroup ? primary : txtMut, fontFamily: "Inter_400Regular", marginTop: 3 }}>
+              {myGroup
+                ? `${myGroup.items.length} update${myGroup.items.length > 1 ? "s" : ""} · tap to view`
+                : "Share a photo, video or text"}
             </Text>
           </View>
-          <Feather name="chevron-right" size={18} color={txtMut} />
+
+          {/* Add button */}
+          <Pressable
+            onPress={() => setShowAdd(true)}
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: primary, alignItems: "center", justifyContent: "center" }}
+          >
+            <Feather name="camera" size={17} color={bg} />
+          </Pressable>
         </Pressable>
 
-        <View style={{ height: 1, backgroundColor: border, marginHorizontal: 0 }} />
-
-        {/* ── Recent updates label ── */}
+        {/* ── Recent updates ── */}
         {contactGroups.length > 0 && (
           <>
-            <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 }}>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: txtMut, letterSpacing: 0.8, textTransform: "uppercase" }}>Recent Updates</Text>
+            {/* Section header with count pill */}
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 22, paddingBottom: 10, gap: 10 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: txtMut, letterSpacing: 1, textTransform: "uppercase", flex: 1 }}>
+                Recent Updates
+              </Text>
+              <View style={{ backgroundColor: `${primary}22`, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, color: primary, fontFamily: "Inter_700Bold" }}>{contactGroups.length}</Text>
+              </View>
             </View>
 
-            {/* Telegram/WhatsApp-style contact list */}
             {contactGroups.map((group, idx) => {
+              const lastItem = group.items[group.items.length - 1];
               const firstItem = group.items[0];
-              const isText = firstItem.type === "text";
-              const textColors = isText ? getTextBg(firstItem.mediaUrl.replace("text:", "")) : null;
+              const isText = lastItem.type === "text";
+              const textColors = isText ? getTextBg(lastItem.mediaUrl.replace("text:", "")) : null;
               const accentColors = ["#F58529", "#DD2A7B", "#8134AF", "#515BD4", "#00B4D8", "#52B788"];
               const ringColor = accentColors[group.user.id % accentColors.length];
+              const ageMs = Date.now() - new Date(firstItem.createdAt).getTime();
+              const isNew = ageMs < 30 * 60 * 1000; // < 30 min
+              const isRecent = ageMs < 6 * 3600 * 1000; // < 6 hr
+              const timeColor = isNew ? "#22c55e" : isRecent ? primary : txtMut;
+
+              // Caption preview: use the most recent item's caption
+              const captionPreview = lastItem.caption?.trim()
+                || (isText ? "Text update" : "📸 Photo");
 
               return (
                 <React.Fragment key={group.user.id}>
                   <Pressable
-                    style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: pressed ? `${primary}08` : "transparent" })}
+                    style={({ pressed }) => ({
+                      flexDirection: "row", alignItems: "center", gap: 14,
+                      paddingHorizontal: 16, paddingVertical: 13,
+                      backgroundColor: pressed ? `${primary}08` : "transparent",
+                    })}
                     onPress={() => openViewer(contactGroups, idx)}
                   >
-                    {/* Round avatar with gradient ring */}
-                    <View>
+                    {/* Avatar with IG-gradient ring + segment count arcs */}
+                    <View style={{ position: "relative" }}>
                       <LinearGradient
                         colors={IG_GRADIENT}
                         start={{ x: 0.2, y: 1 }} end={{ x: 1, y: 0.2 }}
-                        style={{ width: 58, height: 58, borderRadius: 29, padding: 2.5, alignItems: "center", justifyContent: "center" }}
+                        style={{ width: 60, height: 60, borderRadius: 30, padding: 2.5, alignItems: "center", justifyContent: "center" }}
                       >
-                        <View style={{ width: 53, height: 53, borderRadius: 26.5, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+                        <View style={{ width: 55, height: 55, borderRadius: 27.5, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
                           {group.user.avatarUrl ? (
-                            <Image source={{ uri: group.user.avatarUrl }} style={{ width: 49, height: 49, borderRadius: 24.5 }} />
+                            <Image source={{ uri: group.user.avatarUrl }} style={{ width: 51, height: 51, borderRadius: 25.5 }} />
                           ) : (
-                            <View style={{ width: 49, height: 49, borderRadius: 24.5, backgroundColor: `${ringColor}28`, alignItems: "center", justifyContent: "center" }}>
-                              <Text style={{ fontSize: 20, color: ringColor, fontFamily: "Inter_700Bold" }}>{group.user.displayName[0].toUpperCase()}</Text>
+                            <View style={{ width: 51, height: 51, borderRadius: 25.5, backgroundColor: `${ringColor}28`, alignItems: "center", justifyContent: "center" }}>
+                              <Text style={{ fontSize: 21, color: ringColor, fontFamily: "Inter_700Bold" }}>{group.user.displayName[0].toUpperCase()}</Text>
                             </View>
                           )}
                         </View>
                       </LinearGradient>
                       {/* Story count badge */}
                       {group.items.length > 1 && (
-                        <View style={{ position: "absolute", bottom: 0, right: -2, backgroundColor: primary, borderRadius: 9, width: 18, height: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: bg }}>
+                        <View style={{ position: "absolute", bottom: -2, right: -3, backgroundColor: primary, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 4, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: bg }}>
                           <Text style={{ color: bg, fontSize: 10, fontFamily: "Inter_700Bold" }}>{group.items.length}</Text>
                         </View>
                       )}
                     </View>
 
-                    {/* Story preview thumbnail */}
-                    <View style={{ width: 44, height: 56, borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: border }}>
+                    {/* Portrait thumbnail */}
+                    <View style={{ width: 48, height: 64, borderRadius: 11, overflow: "hidden", borderWidth: 1.5, borderColor: isNew ? "#22c55e55" : border }}>
                       {isText ? (
-                        <LinearGradient colors={textColors!} style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 4 }}>
-                          <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", textAlign: "center" }} numberOfLines={3}>{firstItem.caption}</Text>
+                        <LinearGradient colors={textColors!} style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 5 }}>
+                          <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold", textAlign: "center" }} numberOfLines={4}>
+                            {lastItem.caption || "✦"}
+                          </Text>
                         </LinearGradient>
                       ) : (
-                        <Image source={{ uri: firstItem.mediaUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                        <Image source={{ uri: lastItem.mediaUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                       )}
                     </View>
 
                     {/* Info */}
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>{group.user.displayName}</Text>
-                      <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>{timeAgo(firstItem.createdAt)}</Text>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                        <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: txt }}>{group.user.displayName}</Text>
+                        {isNew && (
+                          <View style={{ backgroundColor: "#22c55e22", borderRadius: 7, paddingHorizontal: 7, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 10, color: "#22c55e", fontFamily: "Inter_700Bold" }}>NEW</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ fontSize: 12.5, color: txtSec, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+                        {captionPreview}
+                      </Text>
+                      <Text style={{ fontSize: 11.5, color: timeColor, fontFamily: "Inter_600SemiBold", marginTop: 1 }}>
+                        {timeAgo(firstItem.createdAt)}
+                      </Text>
                     </View>
-
-                    <Feather name="chevron-right" size={17} color={txtMut} />
                   </Pressable>
-                  {idx < contactGroups.length - 1 && <View style={{ height: 1, backgroundColor: border, marginLeft: 88 }} />}
+                  {idx < contactGroups.length - 1 && (
+                    <View style={{ height: 1, backgroundColor: border, marginLeft: 94 }} />
+                  )}
                 </React.Fragment>
               );
             })}
@@ -859,16 +923,22 @@ export default function StatusScreen() {
 
         {/* ── Empty state ── */}
         {!isLoading && contactGroups.length === 0 && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingTop: 20 }}>
-            <View style={{ width: 44, height: 44, borderRadius: 22, overflow: "hidden" }}>
-              <LinearGradient colors={IG_GRADIENT} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="images-outline" size={22} color="#fff" />
-              </LinearGradient>
+          <View style={{ alignItems: "center", paddingTop: 48, gap: 14 }}>
+            <LinearGradient colors={IG_GRADIENT} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="images-outline" size={34} color="#fff" />
+            </LinearGradient>
+            <View style={{ alignItems: "center", gap: 5 }}>
+              <Text style={{ color: txt, fontSize: 17, fontFamily: "Inter_700Bold" }}>No updates yet</Text>
+              <Text style={{ color: txtMut, fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", maxWidth: 260 }}>
+                When your contacts post stories, they'll appear here. Updates disappear after 24h.
+              </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: txt, fontSize: 14, fontFamily: "Inter_600SemiBold" }}>No updates from contacts</Text>
-              <Text style={{ color: txtMut, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 }}>Stories disappear after 24 hours</Text>
-            </View>
+            <Pressable
+              onPress={() => setShowAdd(true)}
+              style={{ backgroundColor: primary, borderRadius: 22, paddingHorizontal: 28, paddingVertical: 13, marginTop: 4 }}
+            >
+              <Text style={{ color: bg, fontSize: 15, fontFamily: "Inter_600SemiBold" }}>Add My First Update</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>

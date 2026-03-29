@@ -12,6 +12,7 @@ export const messagesTable = pgTable("messages", {
   deletedForIds: text("deleted_for_ids").default(""),
   spamFlag: text("spam_flag").default("none"), // "none" | "spam" | "scam"
   spamReason: text("spam_reason").default(null),
+  readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

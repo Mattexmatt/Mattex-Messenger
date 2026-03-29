@@ -26,6 +26,7 @@ interface Message {
   deletedForIds?: string;
   spamFlag?: string | null;
   spamReason?: string | null;
+  readAt?: string | null;
   createdAt: string;
   sender?: { id: number; displayName: string; avatarUrl?: string | null };
 }
@@ -392,6 +393,22 @@ export default function ChatScreen() {
     refetchInterval: 3000,
   });
 
+  // Mark the other user's messages as read when we open the chat
+  useEffect(() => {
+    if (!token || !id) return;
+    apiRequest(`/conversations/${id}/read`, { method: "POST" }).catch(() => {});
+    const interval = setInterval(() => {
+      apiRequest(`/conversations/${id}/read`, { method: "POST" }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [id, token]);
+
+  // ID of the most recent message sent by me (for Sent/Seen indicator)
+  const lastOwnMsgId = useMemo(() => {
+    if (!messages || !user?.id) return null;
+    return messages.find(m => m.senderId === user.id)?.id ?? null;
+  }, [messages, user?.id]);
+
   // Presence: poll the other user's online/last-seen status
   const { data: presence } = useQuery<{ isOnline: boolean; lastSeenAt: string | null }>({
     queryKey: ["presence", otherUserId],
@@ -669,12 +686,18 @@ export default function ChatScreen() {
               </View>
             )}
 
-            {/* Timestamp + ticks */}
+            {/* Timestamp + Sent/Seen */}
             {isLast && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3, justifyContent: isOwn ? "flex-end" : "flex-start", paddingHorizontal: 2 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3, justifyContent: isOwn ? "flex-end" : "flex-start", paddingHorizontal: 2 }}>
                 <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textMuted }}>{formatMsgTime(item.createdAt)}</Text>
-                {isOwn && appSettings.readReceipts && (
-                  <Feather name="check-circle" size={11} color={theme.primary} />
+                {isOwn && item.id === lastOwnMsgId && (
+                  <Text style={{
+                    fontSize: 11,
+                    fontFamily: "Inter_600SemiBold",
+                    color: item.readAt ? theme.primary : theme.textMuted,
+                  }}>
+                    {item.readAt ? "Seen" : "Sent"}
+                  </Text>
                 )}
               </View>
             )}

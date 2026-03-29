@@ -407,43 +407,67 @@ export default function ChatsScreen() {
               <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.textSecondary, letterSpacing: 0.5 }}>MESSAGES</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              style={({ pressed }) => ({
-                flexDirection: "row", alignItems: "center",
-                paddingHorizontal: 20, paddingVertical: 12, gap: 14,
-                opacity: pressed ? 0.75 : 1,
-              })}
-              onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "" } })}
-            >
-              <AvatarCircle user={item.otherUser} size={56} theme={theme} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{item.otherUser.displayName}</Text>
-                <Text style={{ fontSize: 13, color: theme.textSecondary, fontFamily: "Inter_400Regular", marginTop: 3 }} numberOfLines={1}>
-                  {item.lastMessage
-                    ? item.lastMessage.type === "audio" ? "🎤 Voice note"
-                    : item.lastMessage.type === "image" ? "🖼️ Image"
-                    : item.lastMessage.senderId === user?.id ? `You: ${item.lastMessage.content}` : item.lastMessage.content
-                    : "Start a conversation"}
-                </Text>
-              </View>
-              <View style={{ alignItems: "flex-end", gap: 6 }}>
-                {item.lastMessage && (
-                  <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular" }}>{formatTime(item.lastMessage.createdAt)}</Text>
+          renderItem={({ item }) => {
+            const hasUnread = (item.unreadCount ?? 0) > 0;
+            const unreadCount = item.unreadCount ?? 0;
+            return (
+              <Pressable
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center",
+                  paddingHorizontal: 20, paddingVertical: 12, gap: 14,
+                  opacity: pressed ? 0.75 : 1,
+                  backgroundColor: hasUnread ? `${theme.primary}07` : "transparent",
+                })}
+                onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "" } })}
+              >
+                {/* Unread accent bar */}
+                {hasUnread && (
+                  <View style={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 3, borderRadius: 2, backgroundColor: theme.primary }} />
                 )}
-                {(item.unreadCount ?? 0) > 0 && (
-                  <View style={{
-                    backgroundColor: theme.badge,
-                    minWidth: 20, height: 20, borderRadius: 10,
-                    alignItems: "center", justifyContent: "center",
-                    paddingHorizontal: 5,
-                  }}>
-                    <Text style={{ color: theme.badgeText, fontSize: 11, fontFamily: "Inter_700Bold" }}>{item.unreadCount}</Text>
-                  </View>
-                )}
-              </View>
-            </Pressable>
-          )}
+                <AvatarCircle user={item.otherUser} size={56} theme={theme} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 16, fontFamily: hasUnread ? "Inter_700Bold" : "Inter_600SemiBold", color: theme.text }}>
+                    {item.otherUser.displayName}
+                  </Text>
+                  <Text
+                    style={{ fontSize: 13, fontFamily: hasUnread ? "Inter_500Medium" : "Inter_400Regular", color: hasUnread ? theme.textSecondary : theme.textMuted, marginTop: 3 }}
+                    numberOfLines={1}
+                  >
+                    {item.lastMessage
+                      ? item.lastMessage.type === "audio" ? "🎤 Voice note"
+                      : item.lastMessage.type === "image" ? "🖼️ Image"
+                      : item.lastMessage.senderId === user?.id ? `You: ${item.lastMessage.content}` : item.lastMessage.content
+                      : "Start a conversation"}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 6 }}>
+                  {item.lastMessage && (
+                    <Text style={{
+                      fontSize: 12,
+                      fontFamily: hasUnread ? "Inter_600SemiBold" : "Inter_400Regular",
+                      color: hasUnread ? theme.primary : theme.textMuted,
+                    }}>
+                      {formatTime(item.lastMessage.createdAt)}
+                    </Text>
+                  )}
+                  {hasUnread ? (
+                    <View style={{
+                      backgroundColor: theme.badge,
+                      minWidth: 22, height: 22, borderRadius: 11,
+                      alignItems: "center", justifyContent: "center",
+                      paddingHorizontal: 6,
+                    }}>
+                      <Text style={{ color: theme.badgeText, fontSize: 12, fontFamily: "Inter_700Bold" }}>
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ height: 22 }} />
+                  )}
+                </View>
+              </Pressable>
+            );
+          }}
           ItemSeparatorComponent={() => (
             <View style={{ height: 1, backgroundColor: theme.border, marginLeft: 90 }} />
           )}
