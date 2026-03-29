@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,74 +8,121 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Alert,
+  Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt?: string;
 }
 
-const WELCOME: Message = {
-  id: "welcome",
-  role: "assistant",
-  content: "Hey! I'm Mattex AI 👋 — your built-in assistant. Ask me anything — questions, advice, writing, coding, math, or just a chat!",
-};
+function makeWelcome(name?: string): Message {
+  const greeting = name ? `Hey ${name.split(" ")[0]}!` : "Hey!";
+  return {
+    id: "welcome",
+    role: "assistant",
+    content: `${greeting} I'm Mattex AI ✦ — your built-in assistant. I remember our conversations and personalise my answers to you. Ask me anything!`,
+  };
+}
 
 export default function AIScreen() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<Message[]>([WELCOME]);
+  const [messages, setMessages] = useState<Message[]>([makeWelcome(user?.displayName)]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const listRef = useRef<FlatList>(null);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToEnd = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+  }, []);
+
+  // Load persisted history on mount
+  useEffect(() => {
+    apiRequest("/mattex/history")
+      .then((rows: Array<{ id: number; role: "user" | "assistant"; content: string; createdAt: string }>) => {
+        if (rows.length > 0) {
+          const loaded: Message[] = rows.map(r => ({
+            id: String(r.id),
+            role: r.role,
+            content: r.content,
+            createdAt: r.createdAt,
+          }));
+          setMessages([makeWelcome(user?.displayName), ...loaded]);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoaded(true));
   }, []);
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || loading) return;
 
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
+    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content: text };
     setInput("");
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
-    scrollToBottom();
+    scrollToEnd();
 
     try {
-      const history = messages
-        .filter((m) => m.id !== "welcome")
-        .map((m) => ({ role: m.role, content: m.content }));
-
       const { reply } = await apiRequest("/mattex/chat", {
         method: "POST",
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text }),
       });
 
       const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: `a-${Date.now()}`,
         role: "assistant",
         content: reply,
       };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages(prev => [...prev, aiMsg]);
     } catch {
-      const errMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "Sorry, something went wrong. Please try again.",
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages(prev => [
+        ...prev,
+        { id: `e-${Date.now()}`, role: "assistant", content: "Sorry, something went wrong. Please try again." },
+      ]);
     } finally {
       setLoading(false);
-      scrollToBottom();
+      scrollToEnd();
     }
-  }, [input, loading, messages, scrollToBottom]);
+  }, [input, loading, scrollToEnd]);
+
+  const clearHistory = useCallback(() => {
+    Alert.alert(
+      "Clear Chat History",
+      "This will delete all your saved Mattex AI conversations. Mattex won't remember past chats after this.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            setClearing(true);
+            try {
+              await apiRequest("/mattex/history", { method: "DELETE" });
+              setMessages([makeWelcome(user?.displayName)]);
+            } catch {
+              Alert.alert("Error", "Could not clear history.");
+            } finally {
+              setClearing(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [user?.displayName]);
 
   const styles = makeStyles(theme);
 
@@ -107,22 +154,49 @@ export default function AIScreen() {
           </View>
           <View>
             <Text style={styles.headerTitle}>Mattex AI</Text>
-            <Text style={styles.headerSub}>by Allan Matt Tech</Text>
+            <Text style={styles.headerSub}>Personalised · History saved</Text>
           </View>
         </View>
+        {/* Clear history button */}
+        <Pressable
+          onPress={clearHistory}
+          disabled={clearing}
+          style={({ pressed }) => ({
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: pressed ? `${theme.primary}22` : `${theme.primary}11`,
+            alignItems: "center", justifyContent: "center",
+          })}
+          hitSlop={8}
+        >
+          {clearing
+            ? <ActivityIndicator size="small" color={theme.primary} />
+            : <Feather name="trash-2" size={16} color={theme.primary} />}
+        </Pressable>
       </View>
 
+      {/* History loading skeleton */}
+      {!historyLoaded && (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={theme.primary} />
+          <Text style={{ color: theme.textMuted, fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 10 }}>
+            Loading your chat history…
+          </Text>
+        </View>
+      )}
+
       {/* Messages */}
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(m) => m.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        onContentSizeChange={scrollToBottom}
-        showsVerticalScrollIndicator={false}
-        style={styles.messageList}
-      />
+      {historyLoaded && (
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={m => m.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          onContentSizeChange={scrollToEnd}
+          showsVerticalScrollIndicator={false}
+          style={styles.messageList}
+        />
+      )}
 
       {/* Typing indicator */}
       {loading && (
@@ -136,13 +210,22 @@ export default function AIScreen() {
         </View>
       )}
 
+      {/* Personalisation hint (shown once, above the input) */}
+      {historyLoaded && messages.length === 1 && user?.bio && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
+          <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+            ✦ Mattex knows your interests and will personalise its answers for you
+          </Text>
+        </View>
+      )}
+
       {/* Input bar */}
       <View style={[styles.inputBar, { paddingBottom: Platform.OS === "web" ? 96 : Math.max(insets.bottom, 12) }]}>
         <TextInput
           style={styles.input}
           value={input}
           onChangeText={setInput}
-          placeholder="Ask Mattex AI anything..."
+          placeholder="Ask Mattex AI anything…"
           placeholderTextColor={theme.textMuted}
           multiline
           maxLength={2000}
@@ -180,7 +263,7 @@ function makeStyles(theme: any) {
       borderBottomColor: theme.border,
       backgroundColor: theme.surface,
     },
-    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
     headerAvatar: {
       width: 40,
       height: 40,
@@ -191,7 +274,7 @@ function makeStyles(theme: any) {
     },
     headerAvatarText: { fontSize: 18, color: theme.background, fontWeight: "bold" },
     headerTitle: { fontSize: 16, fontWeight: "700", color: theme.text, fontFamily: "Inter_700Bold" },
-    headerSub: { fontSize: 11, color: theme.textMuted, fontFamily: "Inter_400Regular" },
+    headerSub: { fontSize: 11, color: theme.primary, fontFamily: "Inter_400Regular" },
 
     messageList: { flex: 1 },
     list: { padding: 16, gap: 12, paddingBottom: 8 },
