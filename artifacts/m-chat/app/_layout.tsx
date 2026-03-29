@@ -33,6 +33,7 @@ function RootLayoutNav() {
       <Stack.Screen name="call/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="my-profile" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ headerShown: false }} />
+      <Stack.Screen name="starred" options={{ headerShown: false }} />
     </Stack>
   );
 }

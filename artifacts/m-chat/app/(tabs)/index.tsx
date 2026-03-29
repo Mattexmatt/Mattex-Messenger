@@ -260,6 +260,7 @@ export default function ChatsScreen() {
     setTimeout(() => {
       if (action === "profile") router.push("/my-profile");
       else if (action === "settings") router.push("/settings");
+      else if (action === "starred") router.push("/starred");
       else if (action === "newchat") { setPeopleSearch(""); setShowPeople(true); }
     }, 150);
   };

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { conversationsTable, messagesTable, usersTable } from "@workspace/db/schema";
-import { eq, or, and, desc, ne, isNull, count } from "drizzle-orm";
+import { eq, or, and, desc, ne, isNull, count, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import { detectSpam } from "../spamDetector";
 
@@ -118,6 +118,41 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
+// ─── GET /starred — all starred messages for current user ────────────────────
+router.get("/starred", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const userConvs = await db.select().from(conversationsTable)
+    .where(or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)));
+
+  if (userConvs.length === 0) { res.json([]); return; }
+
+  const result = [];
+  for (const conv of userConvs) {
+    const msgs = await db.select({
+      id: messagesTable.id, conversationId: messagesTable.conversationId,
+      senderId: messagesTable.senderId, content: messagesTable.content,
+      type: messagesTable.type, starredBy: messagesTable.starredBy,
+      createdAt: messagesTable.createdAt,
+      sender: { id: usersTable.id, displayName: usersTable.displayName, avatarUrl: usersTable.avatarUrl },
+    }).from(messagesTable)
+      .leftJoin(usersTable, eq(messagesTable.senderId, usersTable.id))
+      .where(and(eq(messagesTable.conversationId, conv.id), sql`starred_by LIKE ${'%' + userId + '%'}`));
+
+    const otherUserId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+    const [otherUser] = await db.select({ id: usersTable.id, displayName: usersTable.displayName, username: usersTable.username, avatarUrl: usersTable.avatarUrl })
+      .from(usersTable).where(eq(usersTable.id, otherUserId));
+
+    for (const m of msgs) {
+      const ids = (m.starredBy ?? "").split(",").filter(Boolean);
+      if (ids.includes(String(userId))) {
+        result.push({ ...m, otherUser: otherUser ?? null });
+      }
+    }
+  }
+  result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  res.json(result);
+});
+
 router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, res) => {
   const conversationId = parseInt(req.params.conversationId);
   const limit = parseInt((req.query.limit as string) ?? "50");
@@ -134,6 +169,7 @@ router.get("/:conversationId/messages", requireAuth, async (req: AuthRequest, re
     spamFlag: messagesTable.spamFlag,
     spamReason: messagesTable.spamReason,
     readAt: messagesTable.readAt,
+    starredBy: messagesTable.starredBy,
     createdAt: messagesTable.createdAt,
     sender: {
       id: usersTable.id,
@@ -167,6 +203,23 @@ router.post("/:conversationId/read", requireAuth, async (req: AuthRequest, res) 
     ));
 
   res.json({ ok: true });
+});
+
+// Star / unstar a message
+router.post("/:conversationId/messages/:messageId/star", requireAuth, async (req: AuthRequest, res) => {
+  const messageId = parseInt(req.params.messageId);
+  const userId = req.userId!;
+  const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+  const starred = (msg.starredBy ?? "").split(",").filter(Boolean);
+  if (starred.includes(String(userId))) {
+    await db.update(messagesTable).set({ starredBy: starred.filter(id => id !== String(userId)).join(",") }).where(eq(messagesTable.id, messageId));
+    res.json({ starred: false });
+  } else {
+    starred.push(String(userId));
+    await db.update(messagesTable).set({ starredBy: starred.join(",") }).where(eq(messagesTable.id, messageId));
+    res.json({ starred: true });
+  }
 });
 
 // Delete a message

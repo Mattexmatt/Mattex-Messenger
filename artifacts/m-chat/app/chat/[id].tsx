@@ -15,6 +15,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { playSendSound, playReceiveSound, initSoundSettings } from "@/utils/sounds";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
 
 interface Message {
   id: number;
@@ -27,6 +30,7 @@ interface Message {
   spamFlag?: string | null;
   spamReason?: string | null;
   readAt?: string | null;
+  starredBy?: string | null;
   createdAt: string;
   sender?: { id: number; displayName: string; avatarUrl?: string | null };
 }
@@ -198,11 +202,12 @@ function SwipeableRow({ onReply, children }: { onReply: () => void; children: Re
 
 // ─── Reaction picker modal ─────────────────────────────────────────────────────
 function ReactionPicker({
-  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, theme,
+  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, theme,
 }: {
   message: Message; isOwn: boolean;
   onSelect: (emoji: string) => void; onClose: () => void;
   onReply: () => void; onDeleteForMe: () => void; onDeleteForAll: () => void;
+  onStar: () => void; isStarred: boolean;
   theme: any;
 }) {
   const mainContent = message.content.startsWith("↩ \"")
@@ -253,6 +258,13 @@ function ReactionPicker({
                   <Text style={{ color: theme.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Reply</Text>
                 </Pressable>
                 <Pressable
+                  style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? "#F59E0B22" : (isStarred ? "#F59E0B18" : theme.surfaceElevated), borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: isStarred ? "#F59E0B55" : theme.border })}
+                  onPress={() => { onStar(); onClose(); }}
+                >
+                  <Ionicons name={isStarred ? "star" : "star-outline"} size={15} color="#F59E0B" />
+                  <Text style={{ color: "#F59E0B", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>{isStarred ? "Unstar" : "Star"}</Text>
+                </Pressable>
+                <Pressable
                   style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? theme.border : theme.surfaceElevated, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: theme.border })}
                   onPress={() => { Clipboard.setString(mainContent); onClose(); }}
                 >
@@ -291,6 +303,82 @@ function ReactionPicker({
         </View>
       </Pressable>
     </Modal>
+  );
+}
+
+// ─── Audio playback bubble ─────────────────────────────────────────────────────
+function AudioBubble({ content, isOwn, theme }: { content: string; isOwn: boolean; theme: any }) {
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0); // 0-1
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => () => { soundRef.current?.unloadAsync().catch(() => {}); }, []);
+
+  const toggle = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Voice note", "Audio playback is available in the native app (Expo Go)");
+      return;
+    }
+    try {
+      if (playing) {
+        await soundRef.current?.pauseAsync();
+        setPlaying(false);
+        return;
+      }
+      if (!soundRef.current) {
+        let uri = content;
+        if (content.startsWith("data:")) {
+          const b64 = content.split(",")[1];
+          const ext = content.includes("ogg") ? "ogg" : content.includes("webm") ? "webm" : "m4a";
+          const tmpPath = FileSystem.cacheDirectory + `voice_${Date.now()}.${ext}`;
+          await FileSystem.writeAsStringAsync(tmpPath, b64, { encoding: FileSystem.EncodingType.Base64 });
+          uri = tmpPath;
+        }
+        const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.isLoaded) {
+            const p = status.durationMillis ? status.positionMillis / status.durationMillis : 0;
+            setPos(p);
+            if (status.didJustFinish) {
+              setPlaying(false);
+              setPos(0);
+              soundRef.current?.unloadAsync().catch(() => {});
+              soundRef.current = null;
+            }
+          }
+        });
+        setPlaying(true);
+      } else {
+        await soundRef.current.playAsync();
+        setPlaying(true);
+      }
+    } catch { Alert.alert("Error", "Could not play audio"); }
+  };
+
+  const bars = [3, 5, 8, 6, 10, 7, 5, 9, 6, 4, 8, 5, 3];
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <Pressable
+        onPress={toggle}
+        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}
+      >
+        <Feather name={playing ? "pause" : "play"} size={15} color={isOwn ? "#fff" : theme.primary} />
+      </Pressable>
+      <View style={{ gap: 4 }}>
+        <View style={{ flexDirection: "row", gap: 2.5, alignItems: "flex-end", height: 16 }}>
+          {bars.map((h, i) => {
+            const filled = pos > 0 && i / bars.length < pos;
+            return (
+              <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: filled ? (isOwn ? "#fff" : theme.primary) : (isOwn ? "rgba(255,255,255,0.45)" : theme.textSecondary) }} />
+            );
+          })}
+        </View>
+        <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.6)" : theme.textMuted, fontFamily: "Inter_400Regular" }}>
+          {playing ? "Playing…" : "Voice note"}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -356,6 +444,16 @@ export default function ChatScreen() {
 
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
+
+  // Voice recording state (WhatsApp-style)
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordCancelledRef = useRef(false);
+
+  // Attach sheet state
+  const [showAttach, setShowAttach] = useState(false);
 
   const toggleBlock = useCallback(() => {
     if (!otherUserId) return;
@@ -502,6 +600,84 @@ export default function ChatScreen() {
     }
   }, [id, queryClient, appSettings, replyTo]);
 
+  // ── Voice recording (WhatsApp-style) ──────────────────────────────────────────
+  const startRecording = useCallback(async () => {
+    if (Platform.OS === "web") {
+      setIsRecording(true);
+      setRecordDuration(0);
+      recordCancelledRef.current = false;
+      recordTimerRef.current = setInterval(() => setRecordDuration(p => p + 1), 1000);
+      return;
+    }
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { Alert.alert("Permission needed", "Microphone permission is required"); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      recordingRef.current = rec;
+      recordCancelledRef.current = false;
+      setIsRecording(true);
+      setRecordDuration(0);
+      if (appSettings.vibrationEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      recordTimerRef.current = setInterval(() => setRecordDuration(p => p + 1), 1000);
+    } catch { Alert.alert("Error", "Could not start recording"); }
+  }, [appSettings.vibrationEnabled]);
+
+  const stopRecording = useCallback(async (cancelled = false) => {
+    if (recordTimerRef.current) { clearInterval(recordTimerRef.current); recordTimerRef.current = null; }
+    setIsRecording(false);
+    if (Platform.OS === "web") {
+      if (!cancelled) Alert.alert("Voice notes", "Voice note recording is available in the native Expo Go app on your device.");
+      setRecordDuration(0);
+      return;
+    }
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    if (!rec) return;
+    try {
+      await rec.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      if (cancelled || recordDuration < 1) { setRecordDuration(0); return; }
+      const uri = rec.getURI();
+      if (!uri) { setRecordDuration(0); return; }
+      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const ext = uri.split(".").pop() ?? "m4a";
+      await sendMsg(`data:audio/${ext};base64,${b64}`, "audio");
+    } catch { Alert.alert("Error", "Could not send voice note"); }
+    setRecordDuration(0);
+  }, [recordDuration, sendMsg]);
+
+  // ── Image / attach ─────────────────────────────────────────────────────────────
+  const pickImage = useCallback(async (source: "gallery" | "camera") => {
+    setShowAttach(false);
+    try {
+      let result;
+      if (source === "camera") {
+        const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+        if (!granted) { Alert.alert("Permission needed", "Camera access is required"); return; }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.6, base64: true });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"] as any, quality: 0.6, base64: true });
+      }
+      if (!result.canceled && result.assets?.[0]?.base64) {
+        const content = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        await sendMsg(content, "image");
+      }
+    } catch { Alert.alert("Error", "Could not attach image"); }
+  }, [sendMsg]);
+
+  // ── Star / unstar ──────────────────────────────────────────────────────────────
+  const starMsg = useCallback(async (msgId: number) => {
+    try {
+      await apiRequest(`/conversations/${id}/messages/${msgId}/star`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["starred"] });
+      if (appSettings.vibrationEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch { Alert.alert("Error", "Could not star message"); }
+  }, [id, queryClient, appSettings.vibrationEnabled]);
+
   const addReaction = (msgId: number, emoji: string) => {
     setReactions(prev => {
       const current = prev[msgId] ?? [];
@@ -647,19 +823,13 @@ export default function ChatScreen() {
                     )}
 
                     {item.type === "audio" ? (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
-                          <Feather name="mic" size={14} color={isOwn ? "#fff" : theme.text} />
-                        </View>
-                        <View style={{ gap: 3 }}>
-                          <View style={{ flexDirection: "row", gap: 2, alignItems: "center" }}>
-                            {[3, 5, 8, 6, 4, 7, 5, 3].map((h, i) => (
-                              <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary }} />
-                            ))}
-                          </View>
-                          <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.6)" : theme.textMuted, fontFamily: "Inter_400Regular" }}>Voice note · 0:05</Text>
-                        </View>
-                      </View>
+                      <AudioBubble content={item.content} isOwn={isOwn} theme={theme} />
+                    ) : item.type === "image" ? (
+                      <Image
+                        source={{ uri: item.content }}
+                        style={{ width: 220, height: 160, borderRadius: 10 }}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? "#fff" : theme.text }}>
                         {mainContent}
@@ -686,9 +856,12 @@ export default function ChatScreen() {
               </View>
             )}
 
-            {/* Timestamp + Sent/Seen */}
+            {/* Timestamp + Sent/Seen + Star */}
             {isLast && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3, justifyContent: isOwn ? "flex-end" : "flex-start", paddingHorizontal: 2 }}>
+                {(item.starredBy ?? "").split(",").filter(Boolean).includes(String(user?.id)) && (
+                  <Ionicons name="star" size={11} color="#F59E0B" />
+                )}
                 <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textMuted }}>{formatMsgTime(item.createdAt)}</Text>
                 {isOwn && item.id === lastOwnMsgId && (
                   <Text style={{
@@ -892,7 +1065,7 @@ export default function ChatScreen() {
       )}
 
       {/* Input bar */}
-      {!isBlocked && <View style={{
+      {!isBlocked && !isRecording && <View style={{
         flexDirection: "row", alignItems: "flex-end", gap: 8,
         paddingHorizontal: 12, paddingVertical: 10,
         paddingBottom: insets.bottom + 10,
@@ -919,7 +1092,7 @@ export default function ChatScreen() {
         </View>
 
         {!text.trim() && (
-          <Pressable style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" }} onPress={() => Alert.alert("Attach", "File attachment coming soon!")}>
+          <Pressable style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setShowAttach(true)}>
             <Feather name="paperclip" size={22} color={theme.textSecondary} />
           </Pressable>
         )}
@@ -929,11 +1102,99 @@ export default function ChatScreen() {
             {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={17} color="#fff" />}
           </Pressable>
         ) : (
-          <Pressable style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }} onPress={() => Alert.alert("Voice Note", "Hold to record — available in the native Expo Go app")}>
+          <Pressable
+            style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}
+            onPressIn={startRecording}
+            onPressOut={() => stopRecording(false)}
+            delayLongPress={200}
+          >
             <Feather name="mic" size={20} color={theme.primary} />
           </Pressable>
         )}
       </View>}
+
+      {/* WhatsApp-style recording bar */}
+      {!isBlocked && isRecording && (
+        <View style={{
+          flexDirection: "row", alignItems: "center",
+          paddingHorizontal: 16, paddingVertical: 14,
+          paddingBottom: insets.bottom + 14,
+          backgroundColor: theme.surface,
+          borderTopWidth: 1, borderTopColor: theme.border, gap: 12,
+        }}>
+          {/* Cancel */}
+          <Pressable
+            onPress={() => stopRecording(true)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 4 }}
+          >
+            <Feather name="chevron-left" size={20} color={theme.textMuted} />
+            <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 14 }}>Cancel</Text>
+          </Pressable>
+
+          {/* Waveform + timer */}
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {/* Animated red dot */}
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#ff4444" }} />
+            {/* Mini waveform */}
+            <View style={{ flex: 1, flexDirection: "row", gap: 2, alignItems: "flex-end", height: 24 }}>
+              {[4,7,10,6,8,5,9,7,4,8,6,10,5,7,4].map((h, i) => (
+                <View key={i} style={{ flex: 1, height: h, borderRadius: 2, backgroundColor: "#ff444488" }} />
+              ))}
+            </View>
+            <Text style={{ color: theme.text, fontFamily: "Inter_600SemiBold", fontSize: 15, minWidth: 44 }}>
+              {`${Math.floor(recordDuration / 60).toString().padStart(2, "0")}:${(recordDuration % 60).toString().padStart(2, "0")}`}
+            </Text>
+          </View>
+
+          {/* Send button */}
+          <Pressable
+            onPress={() => stopRecording(false)}
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }}
+          >
+            <Feather name="send" size={18} color="#fff" />
+          </Pressable>
+        </View>
+      )}
+
+      {/* Attach bottom sheet */}
+      <Modal visible={showAttach} transparent animationType="slide" onRequestClose={() => setShowAttach(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={() => setShowAttach(false)}>
+          <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 8, paddingBottom: insets.bottom + 20 }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: "center", marginBottom: 20 }} />
+            <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text, paddingHorizontal: 24, marginBottom: 16 }}>Attach</Text>
+            <Pressable
+              onPress={() => pickImage("gallery")}
+              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 24, paddingVertical: 14, opacity: pressed ? 0.7 : 1 })}
+            >
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="image" size={22} color={theme.primary} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text }}>Photo Library</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 1 }}>Choose from your gallery</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => pickImage("camera")}
+              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 24, paddingVertical: 14, opacity: pressed ? 0.7 : 1 })}
+            >
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="camera" size={22} color={theme.primary} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text }}>Camera</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 1 }}>Take a photo or video</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowAttach(false)}
+              style={({ pressed }) => ({ marginTop: 8, marginHorizontal: 24, borderRadius: 14, height: 50, backgroundColor: pressed ? theme.border : theme.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.border })}
+            >
+              <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.textSecondary }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Reaction picker modal */}
       {reactionPickerMsg && (
@@ -945,6 +1206,8 @@ export default function ChatScreen() {
           onReply={() => { setReplyTo(reactionPickerMsg); inputRef.current?.focus(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
           onDeleteForMe={() => deleteMsg(reactionPickerMsg.id, "me")}
           onDeleteForAll={() => deleteMsg(reactionPickerMsg.id, "all")}
+          onStar={() => starMsg(reactionPickerMsg.id)}
+          isStarred={(reactionPickerMsg.starredBy ?? "").split(",").filter(Boolean).includes(String(user?.id))}
           theme={theme}
         />
       )}
