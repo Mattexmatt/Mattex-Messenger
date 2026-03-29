@@ -224,6 +224,23 @@ router.post("/:conversationId/messages/:messageId/star", requireAuth, async (req
   }
 });
 
+// Edit a message (own text messages only)
+router.patch("/:conversationId/messages/:messageId", requireAuth, async (req: AuthRequest, res) => {
+  const messageId = parseInt(req.params.messageId);
+  const userId = req.userId!;
+  const { content } = req.body;
+
+  if (!content || typeof content !== "string") { res.status(400).json({ error: "content required" }); return; }
+
+  const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+  if (msg.senderId !== userId) { res.status(403).json({ error: "Cannot edit someone else's message" }); return; }
+  if (msg.type !== "text") { res.status(400).json({ error: "Only text messages can be edited" }); return; }
+
+  await db.update(messagesTable).set({ content: content.trim() }).where(eq(messagesTable.id, messageId));
+  res.json({ success: true });
+});
+
 // Delete a message
 router.delete("/:conversationId/messages/:messageId", requireAuth, async (req: AuthRequest, res) => {
   const messageId = parseInt(req.params.messageId);

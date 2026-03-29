@@ -206,12 +206,13 @@ function SwipeableRow({ onReply, children }: { onReply: () => void; children: Re
 
 // ─── Reaction picker modal ─────────────────────────────────────────────────────
 function ReactionPicker({
-  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, theme,
+  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, onEdit, theme,
 }: {
   message: Message; isOwn: boolean;
   onSelect: (emoji: string) => void; onClose: () => void;
   onReply: () => void; onDeleteForMe: () => void; onDeleteForAll: () => void;
   onStar: () => void; isStarred: boolean;
+  onEdit: () => void;
   theme: any;
 }) {
   const mainContent = message.content.startsWith("↩ \"")
@@ -275,6 +276,15 @@ function ReactionPicker({
                   <Feather name="copy" size={15} color={theme.textSecondary} />
                   <Text style={{ color: theme.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Copy</Text>
                 </Pressable>
+                {isOwn && message.type === "text" && (
+                  <Pressable
+                    style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? `${theme.primary}30` : theme.surfaceElevated, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: theme.border })}
+                    onPress={() => { onEdit(); onClose(); }}
+                  >
+                    <Feather name="edit-2" size={15} color={theme.primary} />
+                    <Text style={{ color: theme.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Edit</Text>
+                  </Pressable>
+                )}
               </View>
 
               {/* Action buttons — row 2: delete */}
@@ -290,10 +300,9 @@ function ReactionPicker({
                   <Pressable
                     style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? "#ff444422" : "#ff444418", borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: "#ff444433" })}
                     onPress={() => {
-                      onClose();
                       Alert.alert("Delete for everyone?", "This message will be removed for all participants.", [
                         { text: "Cancel", style: "cancel" },
-                        { text: "Delete", style: "destructive", onPress: onDeleteForAll },
+                        { text: "Delete", style: "destructive", onPress: () => { onDeleteForAll(); onClose(); } },
                       ]);
                     }}
                   >
@@ -436,6 +445,7 @@ export default function ChatScreen() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [reactions, setReactions] = useState<Record<number, string[]>>({});
   const [reactionPickerMsg, setReactionPickerMsg] = useState<Message | null>(null);
+  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -831,7 +841,7 @@ export default function ChatScreen() {
   const deleteMsg = useCallback(async (msgId: number, scope: "me" | "all") => {
     setReactionPickerMsg(null);
     // Optimistic update
-    queryClient.setQueryData(["messages", id], (old: Message[] | undefined) => {
+    queryClient.setQueryData(["messages", id, token], (old: Message[] | undefined) => {
       if (!old) return old;
       return old.map(m => {
         if (m.id !== msgId) return m;
@@ -853,6 +863,27 @@ export default function ChatScreen() {
       Alert.alert("Error", "Could not delete message");
     }
   }, [id, queryClient, appSettings, user, token, otherUserId, sendSignal]);
+
+  const editMsg = useCallback(async (msgId: number, newContent: string) => {
+    if (!newContent.trim()) return;
+    queryClient.setQueryData(["messages", id, token], (old: Message[] | undefined) => {
+      if (!old) return old;
+      return old.map(m => m.id === msgId ? { ...m, content: newContent.trim() } : m);
+    });
+    try {
+      await apiRequest(`/conversations/${id}/messages/${msgId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content: newContent.trim() }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["messages", id, token] });
+      if (otherUserId) sendSignal(otherUserId, { type: "chat-updated", conversationId: id });
+    } catch {
+      queryClient.invalidateQueries({ queryKey: ["messages", id, token] });
+      Alert.alert("Error", "Could not edit message");
+    }
+    setEditingMsg(null);
+    setText("");
+  }, [id, queryClient, token, otherUserId, sendSignal]);
 
   const r = getBubbleRadius(appSettings.bubbleStyle);
   const fs = getFontSize(appSettings.fontSize);
@@ -1271,6 +1302,22 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Edit preview bar */}
+      {editingMsg && (
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: theme.surfaceElevated, borderTopWidth: 1, borderTopColor: theme.border, paddingHorizontal: 16, paddingVertical: 10, gap: 10, borderLeftWidth: 3, borderLeftColor: "#F59E0B" }}>
+          <Feather name="edit-2" size={16} color="#F59E0B" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11, color: "#F59E0B", fontFamily: "Inter_600SemiBold", marginBottom: 2 }}>Editing message</Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+              {editingMsg.content.startsWith("↩ \"") ? editingMsg.content.split("\n").slice(1).join(" ") : editingMsg.content}
+            </Text>
+          </View>
+          <Pressable onPress={() => { setEditingMsg(null); setText(""); }} style={{ padding: 4 }}>
+            <Feather name="x" size={18} color={theme.textMuted} />
+          </Pressable>
+        </View>
+      )}
+
       {/* Blocked banner — replaces input when user is blocked */}
       {isBlocked && (
         <View style={{ backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.border, paddingHorizontal: 24, paddingVertical: 18, paddingBottom: insets.bottom + 18, alignItems: "center", gap: 8 }}>
@@ -1324,8 +1371,12 @@ export default function ChatScreen() {
         )}
 
         {text.trim() ? (
-          <Pressable style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }} onPress={() => sendMsg(text)} disabled={sending}>
-            {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={17} color="#fff" />}
+          <Pressable
+            style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: editingMsg ? "#F59E0B" : theme.primary, alignItems: "center", justifyContent: "center" }}
+            onPress={() => editingMsg ? editMsg(editingMsg.id, text) : sendMsg(text)}
+            disabled={sending}
+          >
+            {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name={editingMsg ? "check" : "send"} size={17} color="#fff" />}
           </Pressable>
         ) : (
           <Pressable
@@ -1613,6 +1664,16 @@ export default function ChatScreen() {
           onDeleteForAll={() => deleteMsg(reactionPickerMsg.id, "all")}
           onStar={() => starMsg(reactionPickerMsg.id)}
           isStarred={(reactionPickerMsg.starredBy ?? "").split(",").filter(Boolean).includes(String(user?.id))}
+          onEdit={() => {
+            const msg = reactionPickerMsg;
+            setReactionPickerMsg(null);
+            const editableContent = msg.content.startsWith("↩ \"")
+              ? msg.content.split("\n").slice(1).join("\n")
+              : msg.content;
+            setEditingMsg(msg);
+            setText(editableContent);
+            setTimeout(() => inputRef.current?.focus(), 100);
+          }}
           theme={theme}
         />
       )}
