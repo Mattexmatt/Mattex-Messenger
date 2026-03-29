@@ -5,7 +5,7 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme, DisplayMode } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import THEMES, { ThemeName } from "@/constants/colors";
 import * as Haptics from "expo-haptics";
@@ -62,11 +62,12 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 export default function SettingsScreen() {
-  const { theme, themeName, setTheme } = useTheme();
+  const { theme, themeName, setTheme, displayMode, setDisplayMode } = useTheme();
   const { user, logout, token } = useAuth();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
+  const [showDisplayMode, setShowDisplayMode] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLastSeen, setShowLastSeen] = useState(false);
@@ -340,9 +341,21 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="Appearance">
-          <Row icon="droplet" iconColor={accent} label="Chat Theme"
-            right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ fontSize: 16 }}>{THEME_OPTIONS.find(t => t.key === themeName)?.emoji}</Text><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{THEMES[themeName].name}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowTheme(true)} sep={false} />
+          {(() => {
+            const modeLabel = displayMode === "system" ? "System default" : displayMode === "light" ? "Light" : "Dark";
+            const modeIcon = displayMode === "system" ? "smartphone" : displayMode === "light" ? "sun" : "moon";
+            const modeColor = displayMode === "light" ? "#F59E0B" : displayMode === "dark" ? "#6366F1" : primary;
+            return (
+              <Row icon={modeIcon} iconColor={modeColor} label="Display Mode"
+                right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{modeLabel}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
+                onPress={() => setShowDisplayMode(true)} sep={displayMode !== "light"} />
+            );
+          })()}
+          {displayMode !== "light" && (
+            <Row icon="droplet" iconColor={accent} label="Dark Theme"
+              right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ fontSize: 16 }}>{THEME_OPTIONS.find(t => t.key === themeName)?.emoji ?? "💀"}</Text><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{THEMES[themeName]?.name ?? "Midnight Hacker"}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
+              onPress={() => setShowTheme(true)} sep={false} />
+          )}
         </Section>
 
         <Section title="Storage & Data">
@@ -384,6 +397,36 @@ export default function SettingsScreen() {
                 </Pressable>
                 {settings.soundType === opt.key && <Feather name="check-circle" size={20} color={primary} />}
               </View>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Display Mode modal */}
+      <Modal visible={showDisplayMode} animationType="slide" transparent onRequestClose={() => setShowDisplayMode(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowDisplayMode(false)}>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 6 }}>Display Mode</Text>
+            <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", marginBottom: 20 }}>Choose how M Chat looks on your device</Text>
+            {([
+              { key: "system" as const, label: "System default", desc: "Follows your device's appearance setting", icon: "smartphone", color: primary },
+              { key: "light" as const, label: "Light", desc: "Always use light background", icon: "sun", color: "#F59E0B" },
+              { key: "dark" as const, label: "Dark", desc: "Always use dark theme", icon: "moon", color: "#6366F1" },
+            ]).map(opt => (
+              <Pressable key={opt.key}
+                style={{ flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 14, marginBottom: 10, borderWidth: 1.5, gap: 14, backgroundColor: displayMode === opt.key ? `${opt.color}18` : theme.surfaceElevated, borderColor: displayMode === opt.key ? opt.color : border }}
+                onPress={() => { setDisplayMode(opt.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowDisplayMode(false); }}
+              >
+                <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: `${opt.color}22`, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name={opt.icon as any} size={20} color={opt.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>{opt.desc}</Text>
+                </View>
+                {displayMode === opt.key && <Feather name="check-circle" size={22} color={opt.color} />}
+              </Pressable>
             ))}
           </View>
         </Pressable>

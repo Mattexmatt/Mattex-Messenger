@@ -5,7 +5,8 @@ export type ThemeName =
   | "ocean"
   | "volcanic"
   | "galaxy"
-  | "arctic";
+  | "arctic"
+  | "light";
 
 export const THEMES = {
   midnight: {
@@ -196,6 +197,33 @@ export const THEMES = {
     badge: "#4FC3F7",
     badgeText: "#030E1A",
     isDark: true,
+  },
+  light: {
+    name: "Light",
+    emoji: "☀️",
+    primary: "#25D366",
+    primaryDark: "#1BAF56",
+    background: "#FFFFFF",
+    surface: "#F7F8FA",
+    surfaceElevated: "#EDEEF0",
+    text: "#111111",
+    textSecondary: "#555555",
+    textMuted: "#999999",
+    border: "#E2E2E5",
+    bubble: "#FFFFFF",
+    bubbleOwn: "#D9F9E5",
+    tabBar: "#FFFFFF",
+    tabActive: "#25D366",
+    tabInactive: "#AAAAAA",
+    inputBg: "#F0F0F0",
+    accent: "#128C7E",
+    danger: "#E53935",
+    success: "#25D366",
+    gradientTop: "#F0FAF5",
+    gradientBottom: "#FFFFFF",
+    badge: "#25D366",
+    badgeText: "#FFFFFF",
+    isDark: false,
   },
 };
 
