@@ -63,9 +63,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (savedToken && savedUser) {
         setToken(savedToken);
         setTokenState(savedToken);
-        setUser(JSON.parse(savedUser));
-        // Start heartbeat once token is loaded
+        // Load cached user immediately so UI is not blank
+        const cached: UserData = JSON.parse(savedUser);
+        setUser(cached);
         setTimeout(startHeartbeat, 500);
+        // Refresh user from server to pick up new fields (role, etc.)
+        try {
+          const fresh = await apiRequest("/users/me");
+          const merged: UserData = { ...cached, ...fresh };
+          setUser(merged);
+          await AsyncStorage.setItem("mchat_user", JSON.stringify(merged));
+        } catch {
+          // Network unavailable — keep cached data, no crash
+        }
       }
       setIsLoading(false);
     })();
