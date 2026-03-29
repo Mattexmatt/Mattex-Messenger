@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   View, Text, FlatList, Pressable, TextInput,
   Image, ActivityIndicator, Platform, Alert, ScrollView,
-  Animated, PanResponder, Modal, Clipboard
+  Animated, PanResponder, Modal, Clipboard, StyleSheet,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useCall } from "@/context/CallContext";
 import { apiRequest } from "@/utils/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -18,13 +19,14 @@ import { playSendSound, playReceiveSound, initSoundSettings } from "@/utils/soun
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import Svg, { Defs, Pattern, Rect, Path as SvgPath, Circle as SvgCircle } from "react-native-svg";
 
 interface Message {
   id: number;
   conversationId: number;
   senderId: number;
   content: string;
-  type: "text" | "audio" | "image";
+  type: "text" | "audio" | "image" | "video";
   isDeleted?: number;
   deletedForIds?: string;
   spamFlag?: string | null;
@@ -382,12 +384,46 @@ function AudioBubble({ content, isOwn, theme }: { content: string; isOwn: boolea
   );
 }
 
+// ─── Chat wallpaper ────────────────────────────────────────────────────────────
+function ChatWallpaper({ isDark }: { isDark: boolean }) {
+  const bg = isDark ? "#0a131a" : "#dfe7ec";
+  const stroke = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)";
+  const dot = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: bg }]}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <Pattern id="cwp" x="0" y="0" width="52" height="52" patternUnits="userSpaceOnUse">
+            <SvgPath d="M26 3L49 26L26 49L3 26Z" stroke={stroke} strokeWidth="1" fill="none" />
+            <SvgCircle cx="26" cy="26" r="2" fill={dot} />
+            <SvgCircle cx="1" cy="1" r="1" fill={dot} />
+            <SvgCircle cx="51" cy="1" r="1" fill={dot} />
+            <SvgCircle cx="1" cy="51" r="1" fill={dot} />
+            <SvgCircle cx="51" cy="51" r="1" fill={dot} />
+          </Pattern>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#cwp)" />
+      </Svg>
+    </View>
+  );
+}
+
+// ─── Image/Video preview modal ─────────────────────────────────────────────────
+interface PreviewAsset {
+  uri: string;
+  type: "image" | "video";
+  hdMode: boolean;
+  caption: string;
+}
+
 // ─── Main screen ───────────────────────────────────────────────────────────────
 export default function ChatScreen() {
   const { theme } = useTheme();
   const { user, token } = useAuth();
+  const { sendSignal } = useCall();
   const insets = useSafeAreaInsets();
   const { id, name, username, userId: otherUserIdParam, avatarUrl } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string; avatarUrl: string }>();
+  const isDark = !!(theme as any).isDark;
   const otherUserId = otherUserIdParam ? parseInt(otherUserIdParam, 10) : null;
 
   const [text, setText] = useState("");
@@ -454,6 +490,8 @@ export default function ChatScreen() {
 
   // Attach sheet state
   const [showAttach, setShowAttach] = useState(false);
+  // Image/Video preview before send
+  const [previewAsset, setPreviewAsset] = useState<PreviewAsset | null>(null);
 
   const toggleBlock = useCallback(() => {
     if (!otherUserId) return;
@@ -649,24 +687,95 @@ export default function ChatScreen() {
     setRecordDuration(0);
   }, [recordDuration, sendMsg]);
 
-  // ── Image / attach ─────────────────────────────────────────────────────────────
-  const pickImage = useCallback(async (source: "gallery" | "camera") => {
+  // ── Image / video attach ────────────────────────────────────────────────────────
+  const pickImage = useCallback(async (source: "gallery" | "camera", mediaType: "image" | "video" = "image") => {
     setShowAttach(false);
     try {
       let result;
+      const hdQuality = 0.95;
+      const stdQuality = 0.65;
+
       if (source === "camera") {
         const { granted } = await ImagePicker.requestCameraPermissionsAsync();
         if (!granted) { Alert.alert("Permission needed", "Camera access is required"); return; }
-        result = await ImagePicker.launchCameraAsync({ quality: 0.6, base64: true });
+        if (mediaType === "video") {
+          result = await (ImagePicker as any).launchCameraAsync({ mediaTypes: ["videos"], videoMaxDuration: 60 });
+        } else {
+          result = await ImagePicker.launchCameraAsync({ quality: stdQuality, base64: true, exif: false });
+        }
       } else {
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"] as any, quality: 0.6, base64: true });
+        if (mediaType === "video") {
+          result = await (ImagePicker as any).launchImageLibraryAsync({ mediaTypes: ["videos"], videoMaxDuration: 60 });
+        } else {
+          result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"] as any,
+            quality: stdQuality,
+            base64: true,
+            exif: false,
+          });
+        }
       }
-      if (!result.canceled && result.assets?.[0]?.base64) {
-        const content = `data:image/jpeg;base64,${result.assets[0].base64}`;
-        await sendMsg(content, "image");
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        if (mediaType === "video") {
+          setPreviewAsset({ uri: asset.uri, type: "video", hdMode: false, caption: "" });
+        } else if (asset.base64) {
+          const uri = `data:image/jpeg;base64,${asset.base64}`;
+          setPreviewAsset({ uri, type: "image", hdMode: false, caption: "" });
+        }
       }
-    } catch { Alert.alert("Error", "Could not attach image"); }
-  }, [sendMsg]);
+    } catch { Alert.alert("Error", "Could not attach media"); }
+  }, []);
+
+  const sendPreviewAsset = useCallback(async () => {
+    if (!previewAsset) return;
+    setPreviewAsset(null);
+    setSending(true);
+    try {
+      if (previewAsset.type === "image") {
+        let content = previewAsset.uri;
+        // If not HD, re-compress (it's already base64, just send it)
+        if (previewAsset.caption.trim()) {
+          // Send image first, then caption
+          await apiRequest(`/conversations/${id}/messages`, {
+            method: "POST", body: JSON.stringify({ content, type: "image" }),
+          });
+          await apiRequest(`/conversations/${id}/messages`, {
+            method: "POST", body: JSON.stringify({ content: previewAsset.caption, type: "text" }),
+          });
+        } else {
+          await apiRequest(`/conversations/${id}/messages`, {
+            method: "POST", body: JSON.stringify({ content, type: "image" }),
+          });
+        }
+      } else {
+        // Video: read as base64 and send (for native only; on web just show URL)
+        let content = previewAsset.uri;
+        if (Platform.OS !== "web" && !content.startsWith("data:")) {
+          try {
+            const b64 = await FileSystem.readAsStringAsync(content, { encoding: FileSystem.EncodingType.Base64 });
+            content = `data:video/mp4;base64,${b64}`;
+          } catch {}
+        }
+        await apiRequest(`/conversations/${id}/messages`, {
+          method: "POST", body: JSON.stringify({ content, type: "video" }),
+        });
+        if (previewAsset.caption.trim()) {
+          await apiRequest(`/conversations/${id}/messages`, {
+            method: "POST", body: JSON.stringify({ content: previewAsset.caption, type: "text" }),
+          });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      playSendSound();
+    } catch {
+      Alert.alert("Error", "Failed to send media");
+    } finally {
+      setSending(false);
+    }
+  }, [previewAsset, id, queryClient]);
 
   // ── Star / unstar ──────────────────────────────────────────────────────────────
   const starMsg = useCallback(async (msgId: number) => {
@@ -830,6 +939,21 @@ export default function ChatScreen() {
                         style={{ width: 220, height: 160, borderRadius: 10 }}
                         resizeMode="cover"
                       />
+                    ) : item.type === "video" ? (
+                      <View style={{ width: 220, height: 160, borderRadius: 10, backgroundColor: "#000", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                        {Platform.OS === "web" ? (
+                          <video
+                            src={item.content}
+                            controls
+                            style={{ width: "100%", height: "100%", objectFit: "cover" as any, borderRadius: 10 } as any}
+                          />
+                        ) : (
+                          <>
+                            <Feather name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4 }}>Video</Text>
+                          </>
+                        )}
+                      </View>
                     ) : (
                       <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? "#fff" : theme.text }}>
                         {mainContent}
@@ -926,13 +1050,13 @@ export default function ChatScreen() {
         <View style={{ flexDirection: "row", gap: 4 }}>
           <Pressable
             style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}
-            onPress={() => router.push({ pathname: "/call/[id]", params: { id, name, username, callType: "video" } })}
+            onPress={() => router.push({ pathname: "/call/[id]", params: { id: String(otherUserId), name, username, callType: "video", avatarUrl: avatarUrl ?? "" } })}
           >
             <Feather name="video" size={18} color={theme.primary} />
           </Pressable>
           <Pressable
             style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}
-            onPress={() => router.push({ pathname: "/call/[id]", params: { id, name, username, callType: "audio" } })}
+            onPress={() => router.push({ pathname: "/call/[id]", params: { id: String(otherUserId), name, username, callType: "voice", avatarUrl: avatarUrl ?? "" } })}
           >
             <Feather name="phone" size={18} color={theme.primary} />
           </Pressable>
@@ -981,7 +1105,9 @@ export default function ChatScreen() {
         </Modal>
       )}
 
-      {/* Messages */}
+      {/* Messages with wallpaper */}
+      <View style={{ flex: 1, position: "relative" }}>
+        <ChatWallpaper isDark={isDark} />
       <FlatList
         style={{ flex: 1 }}
         data={messages ?? []}
@@ -1006,6 +1132,7 @@ export default function ChatScreen() {
           </View>
         }
       />
+      </View>
 
       {/* Emoji picker */}
       {showEmoji && (
@@ -1156,39 +1283,138 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* ── Media Preview Modal (WhatsApp-style) ─────────────────────────────── */}
+      {previewAsset && (
+        <Modal visible animationType="fade" transparent={false} onRequestClose={() => setPreviewAsset(null)}>
+          <View style={{ flex: 1, backgroundColor: "#000" }}>
+            {/* Top bar */}
+            <View style={{
+              position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
+              flexDirection: "row", alignItems: "center", paddingTop: insets.top + 8,
+              paddingHorizontal: 12, paddingBottom: 12,
+              backgroundColor: "rgba(0,0,0,0.5)",
+            }}>
+              <Pressable onPress={() => setPreviewAsset(null)} style={{ padding: 8 }}>
+                <Feather name="x" size={24} color="#fff" />
+              </Pressable>
+              <Text style={{ flex: 1, color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" }}>
+                {previewAsset.type === "video" ? "Video" : "Photo"}
+              </Text>
+              {/* HD toggle */}
+              <Pressable
+                onPress={() => setPreviewAsset(p => p ? { ...p, hdMode: !p.hdMode } : null)}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6,
+                  borderRadius: 16, borderWidth: 1.5,
+                  borderColor: previewAsset.hdMode ? "#22c55e" : "rgba(255,255,255,0.4)",
+                  backgroundColor: previewAsset.hdMode ? "#22c55e22" : "transparent",
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Feather name="zap" size={13} color={previewAsset.hdMode ? "#22c55e" : "rgba(255,255,255,0.7)"} />
+                <Text style={{ color: previewAsset.hdMode ? "#22c55e" : "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
+                  HD
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Preview content */}
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              {previewAsset.type === "image" ? (
+                <Image
+                  source={{ uri: previewAsset.uri }}
+                  style={{ width: "100%", height: "100%" }}
+                  resizeMode="contain"
+                />
+              ) : Platform.OS === "web" ? (
+                <video
+                  src={previewAsset.uri}
+                  controls
+                  style={{ maxWidth: "100%", maxHeight: "100%", outline: "none" } as any}
+                />
+              ) : (
+                <View style={{ alignItems: "center", gap: 12 }}>
+                  <Feather name="film" size={64} color="rgba(255,255,255,0.5)" />
+                  <Text style={{ color: "rgba(255,255,255,0.7)", fontFamily: "Inter_400Regular", fontSize: 14 }}>Video ready to send</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Bottom caption + send */}
+            <View style={{
+              backgroundColor: "rgba(0,0,0,0.65)",
+              paddingBottom: insets.bottom + 12,
+              paddingTop: 10, paddingHorizontal: 12,
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+                <View style={{
+                  flex: 1, backgroundColor: "rgba(255,255,255,0.12)",
+                  borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8,
+                  borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+                }}>
+                  <TextInput
+                    value={previewAsset.caption}
+                    onChangeText={(t) => setPreviewAsset(p => p ? { ...p, caption: t } : null)}
+                    placeholder="Add a caption…"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    style={{ color: "#fff", fontFamily: "Inter_400Regular", fontSize: 15, maxHeight: 100 }}
+                    multiline
+                  />
+                </View>
+                <Pressable
+                  onPress={sendPreviewAsset}
+                  disabled={sending}
+                  style={({ pressed }) => ({
+                    width: 50, height: 50, borderRadius: 25,
+                    backgroundColor: pressed ? "#16a34a" : "#22c55e",
+                    alignItems: "center", justifyContent: "center",
+                    opacity: sending ? 0.6 : 1,
+                  })}
+                >
+                  {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={20} color="#fff" />}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Attach bottom sheet */}
       <Modal visible={showAttach} transparent animationType="slide" onRequestClose={() => setShowAttach(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={() => setShowAttach(false)}>
           <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 8, paddingBottom: insets.bottom + 20 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: "center", marginBottom: 20 }} />
             <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text, paddingHorizontal: 24, marginBottom: 16 }}>Attach</Text>
-            <Pressable
-              onPress={() => pickImage("gallery")}
-              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 24, paddingVertical: 14, opacity: pressed ? 0.7 : 1 })}
-            >
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
-                <Feather name="image" size={22} color={theme.primary} />
-              </View>
-              <View>
-                <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text }}>Photo Library</Text>
-                <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 1 }}>Choose from your gallery</Text>
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={() => pickImage("camera")}
-              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 24, paddingVertical: 14, opacity: pressed ? 0.7 : 1 })}
-            >
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
-                <Feather name="camera" size={22} color={theme.primary} />
-              </View>
-              <View>
-                <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text }}>Camera</Text>
-                <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 1 }}>Take a photo or video</Text>
-              </View>
-            </Pressable>
+
+            {/* 2-column grid of options */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 12, marginBottom: 16 }}>
+              {[
+                { icon: "image", label: "Photo", sub: "Gallery", color: "#6366f1", onPress: () => pickImage("gallery", "image") },
+                { icon: "video", label: "Video", sub: "Gallery", color: "#f59e0b", onPress: () => pickImage("gallery", "video") },
+                { icon: "camera", label: "Camera", sub: "Take photo", color: "#22c55e", onPress: () => pickImage("camera", "image") },
+                { icon: "film", label: "Record", sub: "Take video", color: "#ef4444", onPress: () => pickImage("camera", "video") },
+              ].map((opt) => (
+                <Pressable
+                  key={opt.label}
+                  onPress={opt.onPress}
+                  style={({ pressed }) => ({
+                    width: "47%", borderRadius: 16, borderWidth: 1, borderColor: theme.border,
+                    backgroundColor: pressed ? theme.surfaceElevated : theme.surface,
+                    padding: 16, alignItems: "center", gap: 8, opacity: pressed ? 0.8 : 1,
+                  })}
+                >
+                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: `${opt.color}18`, alignItems: "center", justifyContent: "center" }}>
+                    <Feather name={opt.icon as any} size={24} color={opt.color} />
+                  </View>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textMuted }}>{opt.sub}</Text>
+                </Pressable>
+              ))}
+            </View>
+
             <Pressable
               onPress={() => setShowAttach(false)}
-              style={({ pressed }) => ({ marginTop: 8, marginHorizontal: 24, borderRadius: 14, height: 50, backgroundColor: pressed ? theme.border : theme.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.border })}
+              style={({ pressed }) => ({ marginHorizontal: 24, borderRadius: 14, height: 50, backgroundColor: pressed ? theme.border : theme.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.border })}
             >
               <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.textSecondary }}>Cancel</Text>
             </Pressable>

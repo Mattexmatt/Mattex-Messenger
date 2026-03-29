@@ -11,11 +11,14 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, Pressable, Image } from "react-native";
+import { Feather, Ionicons } from "@expo/vector-icons";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ThemeProvider } from "@/context/ThemeContext";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { CallProvider, useCall } from "@/context/CallContext";
 import { setBaseUrl } from "@workspace/api-client-react";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
@@ -24,17 +27,114 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+function IncomingCallOverlay() {
+  const { incomingCall, acceptCall, rejectCall } = useCall();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  if (!incomingCall) return null;
+
+  return (
+    <View
+      style={{
+        position: "absolute", top: 0, left: 0, right: 0, zIndex: 9999,
+        paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 16,
+      }}
+      pointerEvents="box-none"
+    >
+      <View style={{
+        backgroundColor: "#1a1a2e",
+        borderRadius: 20,
+        padding: 18,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 20,
+        elevation: 20,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+      }}>
+        {/* Avatar */}
+        <View style={{ position: "relative" }}>
+          {incomingCall.fromAvatar ? (
+            <Image
+              source={{ uri: incomingCall.fromAvatar }}
+              style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: theme.primary }}
+            />
+          ) : (
+            <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: "#fff", fontSize: 22, fontFamily: "Inter_600SemiBold" }}>
+                {(incomingCall.fromDisplayName ?? incomingCall.fromUsername ?? "?")[0].toUpperCase()}
+              </Text>
+            </View>
+          )}
+          {/* Call type icon badge */}
+          <View style={{
+            position: "absolute", bottom: -2, right: -2,
+            width: 20, height: 20, borderRadius: 10,
+            backgroundColor: incomingCall.callType === "video" ? "#3b82f6" : "#22c55e",
+            alignItems: "center", justifyContent: "center",
+            borderWidth: 1.5, borderColor: "#1a1a2e",
+          }}>
+            <Feather name={incomingCall.callType === "video" ? "video" : "phone"} size={10} color="#fff" />
+          </View>
+        </View>
+
+        {/* Info */}
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" }} numberOfLines={1}>
+            {incomingCall.fromDisplayName ?? incomingCall.fromUsername}
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 1 }}>
+            Incoming {incomingCall.callType} call…
+          </Text>
+        </View>
+
+        {/* Decline */}
+        <Pressable
+          onPress={rejectCall}
+          style={({ pressed }) => ({
+            width: 46, height: 46, borderRadius: 23,
+            backgroundColor: pressed ? "#cc1111" : "#ff3333",
+            alignItems: "center", justifyContent: "center",
+          })}
+        >
+          <Feather name="phone-off" size={20} color="#fff" />
+        </Pressable>
+
+        {/* Accept */}
+        <Pressable
+          onPress={acceptCall}
+          style={({ pressed }) => ({
+            width: 46, height: 46, borderRadius: 23,
+            backgroundColor: pressed ? "#15803d" : "#22c55e",
+            alignItems: "center", justifyContent: "center",
+          })}
+        >
+          <Feather name="phone" size={20} color="#fff" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="call/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="my-profile" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ headerShown: false }} />
-      <Stack.Screen name="starred" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="call/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="my-profile" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="starred" options={{ headerShown: false }} />
+      </Stack>
+      <IncomingCallOverlay />
+    </>
   );
 }
 
@@ -60,11 +160,13 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <AuthProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
+              <CallProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </CallProvider>
             </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>
