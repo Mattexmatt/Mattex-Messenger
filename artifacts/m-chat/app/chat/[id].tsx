@@ -322,6 +322,13 @@ function ReactionPicker({
 
 // ─── Audio playback bubble ─────────────────────────────────────────────────────
 function AudioBubble({ content, isOwn, theme }: { content: string; isOwn: boolean; theme: any }) {
+  const aBubbleDark = !!(theme as any).isDark;
+  const aOwnText = aBubbleDark ? "#ffffff" : theme.text;
+  const aOwnTextMuted = aBubbleDark ? "rgba(255,255,255,0.60)" : theme.textMuted;
+  const aOwnBtnBg = aBubbleDark ? "rgba(255,255,255,0.20)" : `${theme.primary}22`;
+  const aOwnBtnColor = aBubbleDark ? "#ffffff" : theme.primary;
+  const aOwnBarFilled = aBubbleDark ? "#ffffff" : theme.primary;
+  const aOwnBarEmpty = aBubbleDark ? "rgba(255,255,255,0.45)" : theme.textSecondary;
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0); // 0-1
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -375,20 +382,20 @@ function AudioBubble({ content, isOwn, theme }: { content: string; isOwn: boolea
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       <Pressable
         onPress={toggle}
-        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}
+        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isOwn ? aOwnBtnBg : `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}
       >
-        <Feather name={playing ? "pause" : "play"} size={15} color={isOwn ? "#fff" : theme.primary} />
+        <Feather name={playing ? "pause" : "play"} size={15} color={isOwn ? aOwnBtnColor : theme.primary} />
       </Pressable>
       <View style={{ gap: 4 }}>
         <View style={{ flexDirection: "row", gap: 2.5, alignItems: "flex-end", height: 16 }}>
           {bars.map((h, i) => {
             const filled = pos > 0 && i / bars.length < pos;
             return (
-              <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: filled ? (isOwn ? "#fff" : theme.primary) : (isOwn ? "rgba(255,255,255,0.45)" : theme.textSecondary) }} />
+              <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: filled ? (isOwn ? aOwnBarFilled : theme.primary) : (isOwn ? aOwnBarEmpty : theme.textSecondary) }} />
             );
           })}
         </View>
-        <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.6)" : theme.textMuted, fontFamily: "Inter_400Regular" }}>
+        <Text style={{ fontSize: 11, color: isOwn ? aOwnTextMuted : theme.textMuted, fontFamily: "Inter_400Regular" }}>
           {playing ? "Playing…" : "Voice note"}
         </Text>
       </View>
@@ -439,6 +446,11 @@ export default function ChatScreen() {
   const otherIsOwner = isOwnerParam === "true";
   const otherRole = roleParam ?? "user";
   const isDark = !!(theme as any).isDark;
+  const ownText = isDark ? "#ffffff" : theme.text;
+  const ownTextMuted = isDark ? "rgba(255,255,255,0.70)" : theme.textSecondary;
+  const ownReplyBg = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.05)";
+  const ownReplyBorder = isDark ? "rgba(255,255,255,0.60)" : theme.border;
+  const ownReplyLabel = isDark ? "rgba(255,255,255,0.75)" : theme.primary;
   const otherUserId = otherUserIdParam ? parseInt(otherUserIdParam, 10) : null;
 
   const [text, setText] = useState("");
@@ -977,9 +989,9 @@ export default function ChatScreen() {
                   <>
                     {/* Reply context strip */}
                     {isReplyMsg && replyLine && (
-                      <View style={{ backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : `${theme.primary}18`, borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: isOwn ? "rgba(255,255,255,0.6)" : theme.primary }}>
-                        <Text style={{ fontSize: 11, color: isOwn ? "rgba(255,255,255,0.75)" : theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 2 }}>↩ Replied</Text>
-                        <Text style={{ fontSize: 12, color: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{replyLine}</Text>
+                      <View style={{ backgroundColor: isOwn ? ownReplyBg : `${theme.primary}18`, borderRadius: 8, padding: 8, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: isOwn ? ownReplyBorder : theme.primary }}>
+                        <Text style={{ fontSize: 11, color: isOwn ? ownReplyLabel : theme.primary, fontFamily: "Inter_600SemiBold", marginBottom: 2 }}>↩ Replied</Text>
+                        <Text style={{ fontSize: 12, color: isOwn ? ownTextMuted : theme.textSecondary, fontFamily: "Inter_400Regular" }} numberOfLines={1}>{replyLine}</Text>
                       </View>
                     )}
 
@@ -1024,10 +1036,10 @@ export default function ChatScreen() {
                               <Feather name={callMeta.type === "video" ? "video" : "phone"} size={16} color={callColor} />
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: isOwn ? "#fff" : theme.text }}>
+                              <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: isOwn ? ownText : theme.text }}>
                                 {callMeta.type === "video" ? "Video call" : "Voice call"}
                               </Text>
-                              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isOwn ? "rgba(255,255,255,0.7)" : theme.textSecondary }}>
+                              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: isOwn ? ownTextMuted : theme.textSecondary }}>
                                 {isMissed ? "Missed" : callMeta.status === "rejected" ? "Declined" : callMeta.status === "cancelled" ? "Cancelled" : callMeta.duration ? `${Math.floor((callMeta.duration ?? 0) / 60)}:${String((callMeta.duration ?? 0) % 60).padStart(2, "0")}` : "Completed"}
                               </Text>
                             </View>
@@ -1088,7 +1100,7 @@ export default function ChatScreen() {
                         </View>
                       </Pressable>
                     ) : (
-                      <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? "#fff" : theme.text }}>
+                      <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? ownText : theme.text }}>
                         {mainContent}
                       </Text>
                     )}
