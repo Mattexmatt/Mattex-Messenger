@@ -12,6 +12,7 @@ import typingRouter from "./typing";
 import blocksRouter from "./blocks";
 import mattexRouter from "./mattex";
 import sessionsRouter from "./sessions";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(typingRouter);
 router.use(blocksRouter);
 router.use("/mattex", mattexRouter);
 router.use("/sessions", sessionsRouter);
+router.use("/admin", adminRouter);
 
 export default router;

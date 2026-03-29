@@ -6,6 +6,7 @@ import UserBadge from "@/components/UserBadge";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTheme, DisplayMode } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import THEMES, { ThemeName } from "@/constants/colors";
@@ -395,9 +396,40 @@ export default function SettingsScreen() {
         </Section>
 
         {user?.isOwner && (
-          <Section title="Owner Tools">
-            <Row icon="star" iconColor="#F59E0B" label="VIP Management" sublabel="Promote or demote users" onPress={() => setShowVipManage(true)} sep={false} />
-          </Section>
+          <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
+            <Pressable onPress={() => router.push("/admin-dashboard" as any)}>
+              <LinearGradient
+                colors={["#1a0a00", "#3d1f00", "#1a0a00"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 20, borderWidth: 1.5, borderColor: "#FFD70044", overflow: "hidden" }}
+              >
+                <View style={{ padding: 18, flexDirection: "row", alignItems: "center", gap: 16 }}>
+                  <LinearGradient colors={["#FFD700", "#FFA500"]} style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 26 }}>👑</Text>
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                      <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFD700" }}>Admin Dashboard</Text>
+                      <View style={{ backgroundColor: "#FFD70022", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#FFD70044" }}>
+                        <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFD700", letterSpacing: 0.5 }}>FOUNDER</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 12, color: "rgba(255,215,0,0.55)", fontFamily: "Inter_400Regular" }}>Stats · Users · Broadcasts · Moderation</Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#FFD700" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable onPress={() => setShowVipManage(true)} style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#A855F710", borderRadius: 14, borderWidth: 1.5, borderColor: "#A855F733", paddingHorizontal: 16, paddingVertical: 13 }}>
+              <Feather name="star" size={17} color="#A855F7" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#A855F7" }}>VIP Management</Text>
+                <Text style={{ fontSize: 12, color: "rgba(168,85,247,0.6)", fontFamily: "Inter_400Regular" }}>Promote or demote users</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#A855F7" />
+            </Pressable>
+          </View>
         )}
 
         <Section title="Storage & Data">

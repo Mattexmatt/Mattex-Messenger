@@ -12,6 +12,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
 import UserBadge from "@/components/UserBadge";
+import OwnerAvatar from "@/components/OwnerAvatar";
 
 const HOBBY_COLORS = [
   "#FF6B9D", "#C77DFF", "#4FC3F7", "#52B788",
@@ -192,7 +193,9 @@ export default function MyProfileScreen() {
           style={{ alignItems: "center", paddingVertical: 36, paddingHorizontal: 24 }}
         >
           <Pressable onPress={openEditModal} style={{ position: "relative" }}>
-            {user.avatarUrl ? (
+            {user.isOwner ? (
+              <OwnerAvatar uri={user.avatarUrl} name={user.displayName} size={110} />
+            ) : user.avatarUrl ? (
               <Image source={{ uri: user.avatarUrl }} style={{ width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: primary }} />
             ) : (
               <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: `${primary}22`, borderWidth: 3, borderColor: primary, alignItems: "center", justifyContent: "center" }}>
@@ -206,6 +209,9 @@ export default function MyProfileScreen() {
 
           <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: txt, marginTop: 16 }}>{user.displayName}</Text>
           <Text style={{ fontSize: 15, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 4 }}>@{user.username}</Text>
+          {user.isOwner && (
+            <Text style={{ fontSize: 12, color: "rgba(255,215,0,0.6)", fontFamily: "Inter_400Regular", marginTop: 2 }}>Founder & CEO · Allan Matt Tech</Text>
+          )}
           <View style={{ marginTop: 10 }}>
             <UserBadge isOwner={user.isOwner} role={user.role} size="lg" />
           </View>
