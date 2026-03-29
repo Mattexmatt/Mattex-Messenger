@@ -41,6 +41,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         status: otherUser.status ?? "🟢 Available",
         statusUpdatedAt: otherUser.statusUpdatedAt,
         isOwner: otherUser.isOwner,
+        role: (otherUser as any).role ?? "user",
         isOnline: otherUser.isOnline ?? false,
         lastSeenAt: otherUser.lastSeenAt,
         createdAt: otherUser.createdAt,
@@ -104,6 +105,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       status: otherUser.status ?? "🟢 Available",
       statusUpdatedAt: otherUser.statusUpdatedAt,
       isOwner: otherUser.isOwner,
+      role: (otherUser as any).role ?? "user",
       createdAt: otherUser.createdAt,
     },
     lastMessage: lastMessage ? {
@@ -332,6 +334,7 @@ router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, r
       displayName: sender.displayName,
       avatarUrl: sender.avatarUrl,
       isOwner: sender.isOwner,
+      role: (sender as any).role ?? "user",
       createdAt: sender.createdAt,
     },
   });

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, Pressable, Modal, ScrollView, Alert, Platform, Image, Switch, ActivityIndicator
+  View, Text, Pressable, Modal, ScrollView, Alert, Platform, Image, Switch, ActivityIndicator, TextInput
 } from "react-native";
+import UserBadge from "@/components/UserBadge";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -76,6 +77,11 @@ export default function SettingsScreen() {
   const [showBubbleStyle, setShowBubbleStyle] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
+  const [showVipManage, setShowVipManage] = useState(false);
+  const [vipSearch, setVipSearch] = useState("");
+  const [vipSearchResults, setVipSearchResults] = useState<{ id: number; username: string; displayName: string; avatarUrl?: string | null; role: string }[]>([]);
+  const [vipSearching, setVipSearching] = useState(false);
+  const [vipUpdating, setVipUpdating] = useState<number | null>(null);
   const [loginAlertDismissed, setLoginAlertDismissed] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
@@ -143,6 +149,31 @@ export default function SettingsScreen() {
     }
   };
 
+  const searchVipUsers = useCallback(async (q: string) => {
+    if (!q.trim()) { setVipSearchResults([]); return; }
+    setVipSearching(true);
+    try {
+      const results = await apiRequest(`/users/search?q=${encodeURIComponent(q.trim())}`);
+      setVipSearchResults(results.filter((u: any) => !u.isOwner));
+    } catch { setVipSearchResults([]); }
+    finally { setVipSearching(false); }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => searchVipUsers(vipSearch), 400);
+    return () => clearTimeout(t);
+  }, [vipSearch, searchVipUsers]);
+
+  const setUserRole = async (userId: number, role: "user" | "vip") => {
+    setVipUpdating(userId);
+    try {
+      await apiRequest(`/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) });
+      setVipSearchResults(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    } catch { Alert.alert("Error", "Could not update role."); }
+    finally { setVipUpdating(null); }
+  };
+
   const unblockUser = async (userId: number, name: string) => {
     try {
       await apiRequest(`/users/${userId}/block`, { method: "DELETE" });
@@ -198,8 +229,8 @@ export default function SettingsScreen() {
     </View>
   );
 
-  const Row = ({ icon, iconColor = primary, label, right, onPress, danger: isDanger, sep = true }: {
-    icon: string; iconColor?: string; label: string; right?: React.ReactNode;
+  const Row = ({ icon, iconColor = primary, label, sublabel, right, onPress, danger: isDanger, sep = true }: {
+    icon: string; iconColor?: string; label: string; sublabel?: string; right?: React.ReactNode;
     onPress?: () => void; danger?: boolean; sep?: boolean;
   }) => (
     <>
@@ -210,7 +241,10 @@ export default function SettingsScreen() {
         <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: `${iconColor}22`, alignItems: "center", justifyContent: "center" }}>
           <Feather name={icon as any} size={17} color={iconColor} />
         </View>
-        <Text style={{ flex: 1, fontSize: 16, color: isDanger ? danger : txt, fontFamily: "Inter_400Regular" }}>{label}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 16, color: isDanger ? danger : txt, fontFamily: "Inter_400Regular" }}>{label}</Text>
+          {sublabel && <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>{sublabel}</Text>}
+        </View>
         {right ?? (onPress ? <Feather name="chevron-right" size={17} color={txtMut} /> : null)}
       </Pressable>
       {sep && <View style={{ height: 1, backgroundColor: border, marginLeft: 64 }} />}
@@ -279,9 +313,11 @@ export default function SettingsScreen() {
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: txt }}>{user?.displayName}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: txt }}>{user?.displayName}</Text>
+                <UserBadge isOwner={user?.isOwner ?? false} role={user?.role} size="sm" />
+              </View>
               <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 2 }}>@{user?.username}</Text>
-              {user?.isOwner && <Text style={{ fontSize: 12, color: primary, fontFamily: "Inter_600SemiBold", marginTop: 3 }}>Owner · Allan Matt Tech</Text>}
             </View>
             <Feather name="chevron-right" size={18} color={txtMut} />
           </Pressable>
@@ -357,6 +393,12 @@ export default function SettingsScreen() {
               onPress={() => setShowTheme(true)} sep={false} />
           )}
         </Section>
+
+        {user?.isOwner && (
+          <Section title="Owner Tools">
+            <Row icon="star" iconColor="#F59E0B" label="VIP Management" sublabel="Promote or demote users" onPress={() => setShowVipManage(true)} sep={false} />
+          </Section>
+        )}
 
         <Section title="Storage & Data">
           <Row icon="trash-2" iconColor={danger} label="Clear Media Cache" onPress={() => Alert.alert("Clear Cache", "Remove all cached media?", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => Alert.alert("Done", "Cache cleared.") }])} sep={false} />
@@ -693,6 +735,97 @@ export default function SettingsScreen() {
                 })}
               </ScrollView>
             )}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* VIP Management modal */}
+      <Modal visible={showVipManage} animationType="slide" transparent onRequestClose={() => setShowVipManage(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowVipManage(false)}>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "85%" }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: "#F59E0B22", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="star" size={20} color="#F59E0B" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt }}>VIP Management</Text>
+                <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 1 }}>Promote or demote users</Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: theme.surfaceElevated, borderRadius: 14, borderWidth: 1, borderColor: border, paddingHorizontal: 14, gap: 10, marginBottom: 16 }}>
+              <Feather name="search" size={17} color={txtMut} />
+              <TextInput
+                style={{ flex: 1, paddingVertical: 12, color: txt, fontFamily: "Inter_400Regular", fontSize: 15 }}
+                placeholder="Search users…"
+                placeholderTextColor={txtMut}
+                value={vipSearch}
+                onChangeText={setVipSearch}
+                autoCapitalize="none"
+              />
+              {vipSearching && <ActivityIndicator size="small" color={primary} />}
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+              {vipSearchResults.length === 0 && vipSearch.trim() !== "" && !vipSearching && (
+                <View style={{ paddingVertical: 32, alignItems: "center", gap: 8 }}>
+                  <Feather name="user-x" size={28} color={txtMut} />
+                  <Text style={{ color: txtMut, fontFamily: "Inter_400Regular", fontSize: 14 }}>No users found</Text>
+                </View>
+              )}
+              {vipSearch.trim() === "" && (
+                <View style={{ paddingVertical: 32, alignItems: "center", gap: 8 }}>
+                  <Feather name="search" size={28} color={txtMut} />
+                  <Text style={{ color: txtMut, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>Search for a username or display name{"\n"}to manage their role</Text>
+                </View>
+              )}
+              {vipSearchResults.map((u) => {
+                const isVip = u.role === "vip";
+                const isUpdating = vipUpdating === u.id;
+                const colors = [primary, "#FF6B9D", "#C77DFF", "#4FC3F7", "#FFB74D"];
+                const col = colors[u.id % colors.length];
+                return (
+                  <View key={u.id} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: border }}>
+                    {u.avatarUrl ? (
+                      <Image source={{ uri: u.avatarUrl }} style={{ width: 46, height: 46, borderRadius: 23 }} />
+                    ) : (
+                      <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: `${col}28`, borderWidth: 2, borderColor: `${col}66`, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: col, fontSize: 17, fontFamily: "Inter_700Bold" }}>{u.displayName[0].toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{u.displayName}</Text>
+                        {isVip && <UserBadge isOwner={false} role="vip" size="sm" />}
+                      </View>
+                      <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular" }}>@{u.username}</Text>
+                    </View>
+                    {isUpdating ? (
+                      <ActivityIndicator size="small" color={primary} />
+                    ) : isVip ? (
+                      <Pressable
+                        onPress={() => Alert.alert(`Remove VIP from ${u.displayName}?`, "They will lose their VIP badge.", [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Remove", style: "destructive", onPress: () => setUserRole(u.id, "user") },
+                        ])}
+                        style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: pressed ? `${danger}30` : `${danger}18`, borderWidth: 1, borderColor: `${danger}33` })}
+                      >
+                        <Text style={{ color: danger, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Revoke VIP</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={() => setUserRole(u.id, "vip")}
+                        style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: pressed ? "#C77DFF33" : "#C77DFF22", borderWidth: 1, borderColor: "#C77DFF44" })}
+                      >
+                        <Text style={{ color: "#C77DFF", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Make VIP</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>

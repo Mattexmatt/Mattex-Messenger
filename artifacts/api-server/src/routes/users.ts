@@ -17,6 +17,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     status: user.status ?? "🟢 Available",
     statusUpdatedAt: user.statusUpdatedAt,
     isOwner: user.isOwner,
+    role: (user as any).role ?? "user",
     createdAt: user.createdAt,
   };
 }
@@ -72,6 +73,22 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(formatUser(user));
+});
+
+// Owner-only: set a user's role to "vip" or "user"
+router.patch("/:id/role", requireAuth, async (req: AuthRequest, res) => {
+  const [me] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
+  if (!me?.isOwner) { res.status(403).json({ error: "Owner only" }); return; }
+
+  const targetId = parseInt(req.params.id, 10);
+  if (isNaN(targetId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const { role } = req.body;
+  if (!["user", "vip"].includes(role)) { res.status(400).json({ error: "role must be 'user' or 'vip'" }); return; }
+
+  const [updated] = await (db as any).update(usersTable).set({ role }).where(eq(usersTable.id, targetId)).returning();
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(formatUser(updated));
 });
 
 export default router;

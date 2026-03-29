@@ -20,6 +20,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import Svg, { Defs, Pattern, Rect, Path as SvgPath, Circle as SvgCircle } from "react-native-svg";
+import UserBadge from "@/components/UserBadge";
 
 interface Message {
   id: number;
@@ -434,7 +435,9 @@ export default function ChatScreen() {
   const { user, token } = useAuth();
   const { sendSignal, onSignal } = useCall();
   const insets = useSafeAreaInsets();
-  const { id, name, username, userId: otherUserIdParam, avatarUrl } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string; avatarUrl: string }>();
+  const { id, name, username, userId: otherUserIdParam, avatarUrl, isOwner: isOwnerParam, role: roleParam } = useLocalSearchParams<{ id: string; name: string; username: string; userId: string; avatarUrl: string; isOwner: string; role: string }>();
+  const otherIsOwner = isOwnerParam === "true";
+  const otherRole = roleParam ?? "user";
   const isDark = !!(theme as any).isDark;
   const otherUserId = otherUserIdParam ? parseInt(otherUserIdParam, 10) : null;
 
@@ -1161,6 +1164,7 @@ export default function ChatScreen() {
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{name}</Text>
+            <UserBadge isOwner={otherIsOwner} role={otherRole} size="sm" />
             {isMuted && <Feather name="bell-off" size={13} color={theme.textMuted} />}
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>

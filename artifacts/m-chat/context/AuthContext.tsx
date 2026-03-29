@@ -12,6 +12,7 @@ export interface UserData {
   status?: string | null;
   statusUpdatedAt?: string | null;
   isOwner: boolean;
+  role?: string;
   createdAt: string;
 }
 

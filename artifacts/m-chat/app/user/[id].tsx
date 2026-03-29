@@ -9,7 +9,8 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import UserBadge from "@/components/UserBadge";
 
 const HOBBY_COLORS = [
   "#FF6B9D", "#C77DFF", "#4FC3F7", "#52B788",
@@ -37,6 +38,7 @@ interface UserProfile {
   hobbies?: string | null;
   status?: string | null;
   isOwner: boolean;
+  role?: string;
   createdAt: string;
 }
 
@@ -157,9 +159,12 @@ export default function UserProfileScreen() {
           <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: theme.text, marginTop: 16 }}>
             {displayName}
           </Text>
-          <Text style={{ fontSize: 14, color: theme.textSecondary, fontFamily: "Inter_400Regular", marginTop: 4 }}>
-            @{uname}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <Text style={{ fontSize: 14, color: theme.textSecondary, fontFamily: "Inter_400Regular" }}>
+              @{uname}
+            </Text>
+            <UserBadge isOwner={profile?.isOwner ?? false} role={profile?.role} size="md" />
+          </View>
 
           {/* Status text */}
           {status && (

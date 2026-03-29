@@ -68,6 +68,7 @@ router.post("/register", async (req, res) => {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
       isOwner: user.isOwner,
+      role: (user as any).role ?? "user",
       createdAt: user.createdAt,
     },
   });
@@ -105,6 +106,7 @@ router.post("/login", async (req, res) => {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
       isOwner: user.isOwner,
+      role: (user as any).role ?? "user",
       createdAt: user.createdAt,
     },
   });

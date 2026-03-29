@@ -10,9 +10,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { apiRequest } from "@/utils/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import UserBadge from "@/components/UserBadge";
 
 interface ConvUser {
-  id: number; username: string; displayName: string; avatarUrl?: string | null; isOwner: boolean; createdAt: string;
+  id: number; username: string; displayName: string; avatarUrl?: string | null; isOwner: boolean; role?: string; createdAt: string;
   isOnline?: boolean; lastSeenAt?: string | null;
 }
 interface ConvMessage {
@@ -285,7 +286,7 @@ export default function ChatsScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       setSearch(""); setSearchResults([]);
-      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: otherUser.displayName, username: otherUser.username, userId: otherUser.id, avatarUrl: otherUser.avatarUrl ?? "" } });
+      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: otherUser.displayName, username: otherUser.username, userId: otherUser.id, avatarUrl: otherUser.avatarUrl ?? "", isOwner: String(otherUser.isOwner), role: otherUser.role ?? "user" } });
     } catch (e) { console.error(e); }
   };
 
@@ -396,7 +397,10 @@ export default function ChatsScreen() {
             >
               <AvatarCircle user={item} size={54} theme={theme} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{item.displayName}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{item.displayName}</Text>
+                  <UserBadge isOwner={item.isOwner} role={item.role} size="sm" />
+                </View>
                 <Text style={{ fontSize: 13, color: theme.textSecondary, fontFamily: "Inter_400Regular", marginTop: 2 }}>@{item.username}</Text>
               </View>
               <Feather name="chevron-right" size={18} color={theme.textMuted} />
@@ -433,7 +437,7 @@ export default function ChatsScreen() {
                   opacity: pressed ? 0.75 : 1,
                   backgroundColor: hasUnread ? `${theme.primary}07` : "transparent",
                 })}
-                onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "" } })}
+                onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "", isOwner: String(item.otherUser.isOwner), role: item.otherUser.role ?? "user" } })}
               >
                 {/* Unread accent bar */}
                 {hasUnread && (
@@ -441,9 +445,12 @@ export default function ChatsScreen() {
                 )}
                 <AvatarCircle user={item.otherUser} size={56} theme={theme} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 16, fontFamily: hasUnread ? "Inter_700Bold" : "Inter_600SemiBold", color: theme.text }}>
-                    {item.otherUser.displayName}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+                    <Text style={{ fontSize: 16, fontFamily: hasUnread ? "Inter_700Bold" : "Inter_600SemiBold", color: theme.text }} numberOfLines={1}>
+                      {item.otherUser.displayName}
+                    </Text>
+                    <UserBadge isOwner={item.otherUser.isOwner} role={item.otherUser.role} size="sm" />
+                  </View>
                   <Text
                     style={{ fontSize: 13, fontFamily: hasUnread ? "Inter_500Medium" : "Inter_400Regular", color: hasUnread ? theme.textSecondary : theme.textMuted, marginTop: 3 }}
                     numberOfLines={1}
