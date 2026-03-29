@@ -451,6 +451,16 @@ export default function ChatsScreen() {
                     {item.lastMessage
                       ? item.lastMessage.type === "audio" ? "🎤 Voice note"
                       : item.lastMessage.type === "image" ? "🖼️ Image"
+                      : item.lastMessage.type === "video" ? "🎥 Video"
+                      : item.lastMessage.type === "call" || (item.lastMessage.content?.startsWith("{") && item.lastMessage.content?.includes('"status"'))
+                        ? (() => {
+                            try {
+                              const m = JSON.parse(item.lastMessage.content);
+                              const icon = m.type === "video" ? "📹" : "📞";
+                              const label = m.status === "missed" ? "Missed call" : m.status === "rejected" ? "Declined call" : m.status === "cancelled" ? "Cancelled call" : "Call";
+                              return `${icon} ${label}`;
+                            } catch { return "📞 Call"; }
+                          })()
                       : item.lastMessage.senderId === user?.id ? `You: ${item.lastMessage.content}` : item.lastMessage.content
                       : "Start a conversation"}
                   </Text>
