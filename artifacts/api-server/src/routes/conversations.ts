@@ -41,6 +41,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         status: otherUser.status ?? "🟢 Available",
         statusUpdatedAt: otherUser.statusUpdatedAt,
         isOwner: otherUser.isOwner,
+        isOnline: otherUser.isOnline ?? false,
+        lastSeenAt: otherUser.lastSeenAt,
         createdAt: otherUser.createdAt,
       },
       lastMessage: lastMessage ? {

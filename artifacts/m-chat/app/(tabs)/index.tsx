@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface ConvUser {
   id: number; username: string; displayName: string; avatarUrl?: string | null; isOwner: boolean; createdAt: string;
+  isOnline?: boolean; lastSeenAt?: string | null;
 }
 interface ConvMessage {
   id: number; conversationId: number; senderId: number; content: string; type: string; createdAt: string;
@@ -36,18 +37,31 @@ function AvatarCircle({ user, size = 52, theme }: { user: ConvUser; size?: numbe
     theme.primary, theme.accent, "#FF6B9D", "#C77DFF", "#4FC3F7", "#FFB74D", "#69F0AE"
   ];
   const color = colors[user.id % colors.length];
-  return user.avatarUrl ? (
-    <Image source={{ uri: user.avatarUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} />
-  ) : (
-    <View style={{
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: color + "33",
-      borderWidth: 2, borderColor: color,
-      alignItems: "center", justifyContent: "center",
-    }}>
-      <Text style={{ color, fontSize: size * 0.38, fontFamily: "Inter_700Bold" }}>
-        {user.displayName[0].toUpperCase()}
-      </Text>
+  const dotSize = Math.max(10, Math.round(size * 0.22));
+  return (
+    <View style={{ position: "relative" }}>
+      {user.avatarUrl ? (
+        <Image source={{ uri: user.avatarUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} />
+      ) : (
+        <View style={{
+          width: size, height: size, borderRadius: size / 2,
+          backgroundColor: color + "33",
+          borderWidth: 2, borderColor: color,
+          alignItems: "center", justifyContent: "center",
+        }}>
+          <Text style={{ color, fontSize: size * 0.38, fontFamily: "Inter_700Bold" }}>
+            {user.displayName[0].toUpperCase()}
+          </Text>
+        </View>
+      )}
+      {user.isOnline && (
+        <View style={{
+          position: "absolute", bottom: 0, right: 0,
+          width: dotSize, height: dotSize, borderRadius: dotSize / 2,
+          backgroundColor: "#22c55e",
+          borderWidth: 2.5, borderColor: theme.background,
+        }} />
+      )}
     </View>
   );
 }
