@@ -309,7 +309,15 @@ export default function ChatsScreen() {
       }}>
         {/* Title Row */}
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
-          <Text style={{ flex: 1, fontSize: 26, fontFamily: "Inter_700Bold", color: theme.text }}>Chats</Text>
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center", shadowColor: theme.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 4 }}>
+              <Text style={{ fontSize: 18 }}>💬</Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: theme.text, letterSpacing: -0.3 }}>M Chat</Text>
+              <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: theme.primary, letterSpacing: 1.2, textTransform: "uppercase", marginTop: -2 }}>Allan Matt Tech</Text>
+            </View>
+          </View>
           {/* Hamburger menu */}
           <Pressable
             style={{

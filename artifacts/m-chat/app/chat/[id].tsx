@@ -91,46 +91,49 @@ function getFontSize(size: AppSettings["fontSize"]) {
   return size === "small" ? 13 : size === "large" ? 18 : 15;
 }
 
-// ─── Typing / Recording bubble ────────────────────────────────────────────────
+// ─── Telegram-style Typing bubble ─────────────────────────────────────────────
 function TypingBubble({ type, theme, r }: { type: "typing" | "recording"; theme: any; r: number }) {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const bounce = (v: Animated.Value, delay: number) =>
+    // Telegram exact: dots scale up/down in a wave, opacity pulses
+    const pulse = (v: Animated.Value, delay: number) =>
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(v, { toValue: -6, duration: 280, useNativeDriver: true }),
-          Animated.timing(v, { toValue: 0, duration: 280, useNativeDriver: true }),
-          Animated.delay(600),
+          Animated.timing(v, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(v, { toValue: 0, duration: 300, useNativeDriver: true }),
+          Animated.delay(600 - delay),
         ])
       );
-    const a1 = bounce(dot1, 0);
-    const a2 = bounce(dot2, 140);
-    const a3 = bounce(dot3, 280);
+    const a1 = pulse(dot1, 0);
+    const a2 = pulse(dot2, 200);
+    const a3 = pulse(dot3, 400);
     a1.start(); a2.start(); a3.start();
     return () => { a1.stop(); a2.stop(); a3.stop(); };
   }, []);
 
+  const isDark = !!(theme as any).isDark;
+  const dotBg = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.35)";
+  const dotBgActive = theme.primary;
+
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, marginBottom: 8 }}>
-      <View style={{ width: 30, marginRight: 6 }}>
-        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: `${theme.primary}22`, alignItems: "center", justifyContent: "center" }}>
-          <Feather name={type === "recording" ? "mic" : "more-horizontal"} size={12} color={theme.primary} />
-        </View>
-      </View>
+    <View style={{ flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 14, marginBottom: 10 }}>
       <View style={{
         backgroundColor: theme.bubble,
-        borderRadius: r, paddingHorizontal: 16, paddingVertical: 12,
+        borderRadius: 18, borderBottomLeftRadius: 4,
+        paddingHorizontal: 14, paddingVertical: 12,
         borderWidth: 1, borderColor: theme.border,
         flexDirection: "row", alignItems: "center", gap: 5,
+        shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
       }}>
         {type === "recording" ? (
           <>
-            {[3, 6, 9, 7, 4, 8, 5].map((h, i) => (
-              <Animated.View key={i} style={{ width: 3, height: h, borderRadius: 2, backgroundColor: theme.primary, opacity: 0.7 }} />
+            {[3, 5, 8, 6, 4, 7, 5].map((h, i) => (
+              <Animated.View key={i} style={{ width: 3, height: h, borderRadius: 2, backgroundColor: theme.primary, opacity: 0.8 }} />
             ))}
           </>
         ) : (
@@ -138,7 +141,12 @@ function TypingBubble({ type, theme, r }: { type: "typing" | "recording"; theme:
             {[dot1, dot2, dot3].map((d, i) => (
               <Animated.View
                 key={i}
-                style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.textSecondary, transform: [{ translateY: d }] }}
+                style={{
+                  width: 8, height: 8, borderRadius: 4,
+                  backgroundColor: dotBg,
+                  transform: [{ scale: d.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] }) }],
+                  opacity: d.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
+                }}
               />
             ))}
           </>
@@ -463,6 +471,8 @@ export default function ChatScreen() {
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [showMedia, setShowMedia] = useState(false);
+  const [mediaViewer, setMediaViewer] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({
@@ -1220,6 +1230,19 @@ export default function ChatScreen() {
         <Modal visible transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowMenu(false)}>
             <View style={{ position: "absolute", top: insets.top + (Platform.OS === "web" ? 130 : 72), right: 12, backgroundColor: theme.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.border, overflow: "hidden", minWidth: 220, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 10 }}>
+              {/* View Shared Media */}
+              <Pressable
+                onPress={() => { setShowMenu(false); setShowMedia(true); }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingVertical: 15, backgroundColor: pressed ? theme.surfaceElevated : "transparent", borderBottomWidth: 1, borderBottomColor: theme.border })}
+              >
+                <Feather name="image" size={19} color={theme.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: theme.text }}>Shared Media</Text>
+                  <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: theme.textMuted, marginTop: 1 }}>Photos & videos</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={theme.textMuted} />
+              </Pressable>
+
               {/* Mute toggle */}
               <Pressable
                 onPress={() => { toggleMute(); setShowMenu(false); }}
@@ -1250,6 +1273,105 @@ export default function ChatScreen() {
           </Pressable>
         </Modal>
       )}
+
+      {/* ── Shared Media Gallery (Telegram-style) ──────────────────── */}
+      <Modal visible={showMedia} animationType="slide" onRequestClose={() => setShowMedia(false)}>
+        <View style={{ flex: 1, backgroundColor: theme.background }}>
+          {/* Header */}
+          <View style={{
+            paddingTop: insets.top + (Platform.OS === "web" ? 72 : 16),
+            paddingHorizontal: 16, paddingBottom: 12,
+            backgroundColor: theme.surface,
+            borderBottomWidth: 1, borderBottomColor: theme.border,
+            flexDirection: "row", alignItems: "center", gap: 12,
+          }}>
+            <Pressable onPress={() => setShowMedia(false)} style={{ padding: 6 }}>
+              <Feather name="arrow-left" size={22} color={theme.text} />
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: theme.text }}>{name}</Text>
+              <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular" }}>Shared media</Text>
+            </View>
+          </View>
+
+          {/* Media grid */}
+          {(() => {
+            const allMsgs: Message[] = messages ?? [];
+            const mediaItems = allMsgs.filter(m => (m.type === "image" || m.type === "video") && !m.isDeleted && m.content);
+            if (mediaItems.length === 0) {
+              return (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14 }}>
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="image" size={36} color={theme.textMuted} />
+                  </View>
+                  <Text style={{ color: theme.text, fontFamily: "Inter_600SemiBold", fontSize: 17 }}>No media yet</Text>
+                  <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", paddingHorizontal: 40 }}>
+                    Photos and videos shared in this conversation will appear here.
+                  </Text>
+                </View>
+              );
+            }
+            const COLS = 3;
+            const SIZE = Math.floor((350) / COLS);
+            return (
+              <ScrollView contentContainerStyle={{ padding: 2 }}>
+                {/* Group by month */}
+                {Array.from(new Set(mediaItems.map(m => {
+                  const d = new Date(m.createdAt);
+                  return `${d.toLocaleString("default", { month: "long" })} ${d.getFullYear()}`;
+                }))).map(month => {
+                  const monthItems = mediaItems.filter(m => {
+                    const d = new Date(m.createdAt);
+                    return `${d.toLocaleString("default", { month: "long" })} ${d.getFullYear()}` === month;
+                  });
+                  return (
+                    <View key={month}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.textSecondary, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8 }}>{month}</Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, paddingHorizontal: 2 }}>
+                        {monthItems.map(item => (
+                          <Pressable
+                            key={item.id}
+                            onPress={() => setMediaViewer(item.content)}
+                            style={{ width: SIZE, height: SIZE, backgroundColor: theme.surface }}
+                          >
+                            <Image
+                              source={{ uri: item.content }}
+                              style={{ width: SIZE, height: SIZE }}
+                              resizeMode="cover"
+                            />
+                            {item.type === "video" && (
+                              <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.25)" }}>
+                                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
+                                  <Feather name="play" size={14} color="#fff" />
+                                </View>
+                              </View>
+                            )}
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            );
+          })()}
+        </View>
+      </Modal>
+
+      {/* Full-screen media viewer */}
+      <Modal visible={!!mediaViewer} animationType="fade" transparent onRequestClose={() => setMediaViewer(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.96)", alignItems: "center", justifyContent: "center" }}>
+          <Pressable
+            style={{ position: "absolute", top: insets.top + 16, right: 16, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}
+            onPress={() => setMediaViewer(null)}
+          >
+            <Feather name="x" size={22} color="#fff" />
+          </Pressable>
+          {mediaViewer && (
+            <Image source={{ uri: mediaViewer }} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
+          )}
+        </View>
+      </Modal>
 
       {/* Messages with wallpaper */}
       <View style={{ flex: 1, position: "relative" }}>
