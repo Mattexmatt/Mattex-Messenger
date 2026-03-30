@@ -503,15 +503,19 @@ export default function AIScreen() {
             {/* Timer + label */}
             <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
               <RecordingTimer color={theme.text} />
-              <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 11 }}>Tap ✕ to cancel · ■ to send</Text>
+              <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 11 }}>Tap ✕ to cancel · tap → to send</Text>
             </View>
 
-            {/* Send / stop button */}
-            <Pressable
-              onPress={stopRecording}
-              style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" }}
-            >
-              <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: "#fff" }} />
+            {/* Send / stop button — Meta AI style gradient */}
+            <Pressable onPress={stopRecording} style={{ width: 46, height: 46, borderRadius: 23, overflow: "hidden" }}>
+              <LinearGradient
+                colors={["#0EA5E9", "#6366F1", "#8B5CF6"]}
+                start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }}
+                style={{ flex: 1, alignItems: "center", justifyContent: "center",
+                  shadowColor: "#6366F1", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 6 }}
+              >
+                <Feather name="send" size={18} color="#fff" style={{ marginLeft: 2 }} />
+              </LinearGradient>
             </Pressable>
           </View>
         ) : (
