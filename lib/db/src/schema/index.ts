@@ -9,3 +9,4 @@ export * from "./blocks";
 export * from "./user_sessions";
 export * from "./ai_chats";
 export * from "./call_logs";
+export * from "./scheduled_messages";

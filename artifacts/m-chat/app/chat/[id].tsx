@@ -597,6 +597,14 @@ export default function ChatScreen() {
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState<string | null>(null);
+  const [showCapsule, setShowCapsule] = useState(false);
+  const [capsuleText, setCapsuleText] = useState("");
+  const [capsulePreset, setCapsulePreset] = useState<string | null>(null);
+  const [capsuleCustomHours, setCapsuleCustomHours] = useState("24");
+  const [schedulingCapsule, setSchedulingCapsule] = useState(false);
+  const [showScheduled, setShowScheduled] = useState(false);
+  const [scheduledMsgs, setScheduledMsgs] = useState<{ id: number; content: string; type: string; scheduledAt: string }[]>([]);
+  const [cancellingCapsule, setCancellingCapsule] = useState<number | null>(null);
   const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
@@ -1085,6 +1093,68 @@ export default function ChatScreen() {
     }
   }, [translating]);
 
+  const CAPSULE_PRESETS = useMemo(() => {
+    const now = new Date();
+    const inHour = new Date(now.getTime() + 60 * 60 * 1000);
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(9, 0, 0, 0);
+    const in3 = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const inWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const inMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return [
+      { key: "1hr", label: "In 1 hour", sub: inHour.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), date: inHour },
+      { key: "tomorrow", label: "Tomorrow", sub: tomorrow.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " · 9:00 AM", date: tomorrow },
+      { key: "3days", label: "In 3 days", sub: in3.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }), date: in3 },
+      { key: "week", label: "Next week", sub: inWeek.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }), date: inWeek },
+      { key: "month", label: "In 1 month", sub: inMonth.toLocaleDateString([], { month: "long", day: "numeric" }), date: inMonth },
+      { key: "custom", label: "Custom", sub: "Set hours from now", date: null },
+    ];
+  }, [showCapsule]);
+
+  const scheduleCapsule = useCallback(async () => {
+    const msgText = capsuleText.trim();
+    if (!msgText) { Alert.alert("Empty message", "Write a message to schedule."); return; }
+    if (!capsulePreset) { Alert.alert("Pick a time", "Choose when to send the message."); return; }
+    const preset = CAPSULE_PRESETS.find(p => p.key === capsulePreset);
+    let scheduledAt: Date;
+    if (capsulePreset === "custom") {
+      const hrs = parseFloat(capsuleCustomHours);
+      if (isNaN(hrs) || hrs <= 0) { Alert.alert("Invalid time", "Enter a valid number of hours."); return; }
+      scheduledAt = new Date(Date.now() + hrs * 60 * 60 * 1000);
+    } else {
+      scheduledAt = preset!.date!;
+    }
+    setSchedulingCapsule(true);
+    try {
+      await apiRequest("/scheduled", {
+        method: "POST",
+        body: JSON.stringify({ conversationId: Number(id), content: msgText, type: "text", scheduledAt: scheduledAt.toISOString() }),
+      });
+      if (appSettings.vibrationEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowCapsule(false);
+      setCapsuleText("");
+      setCapsulePreset(null);
+      Alert.alert("⏰ Time Capsule Scheduled!", `Your message will be delivered on ${scheduledAt.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })} at ${scheduledAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+    } catch { Alert.alert("Error", "Could not schedule the message. Try again."); }
+    finally { setSchedulingCapsule(false); }
+  }, [capsuleText, capsulePreset, capsuleCustomHours, CAPSULE_PRESETS, id, appSettings.vibrationEnabled]);
+
+  const loadScheduled = useCallback(async () => {
+    try {
+      const rows = await apiRequest(`/scheduled/${id}`);
+      setScheduledMsgs(Array.isArray(rows) ? rows : []);
+    } catch { setScheduledMsgs([]); }
+  }, [id]);
+
+  const cancelCapsule = useCallback(async (msgId: number) => {
+    setCancellingCapsule(msgId);
+    try {
+      await apiRequest(`/scheduled/${msgId}`, { method: "DELETE" });
+      setScheduledMsgs(prev => prev.filter(m => m.id !== msgId));
+      if (appSettings.vibrationEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch { Alert.alert("Error", "Could not cancel this scheduled message."); }
+    finally { setCancellingCapsule(null); }
+  }, [appSettings.vibrationEnabled]);
+
   const addReaction = (msgId: number, emoji: string) => {
     setReactions(prev => {
       const current = prev[msgId] ?? [];
@@ -1511,6 +1581,19 @@ export default function ChatScreen() {
                 <Feather name="chevron-right" size={16} color={theme.textMuted} />
               </Pressable>
 
+              {/* Scheduled Messages */}
+              <Pressable
+                onPress={() => { setShowMenu(false); loadScheduled(); setShowScheduled(true); }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingVertical: 15, backgroundColor: pressed ? theme.surfaceElevated : "transparent", borderBottomWidth: 1, borderBottomColor: theme.border })}
+              >
+                <Feather name="clock" size={19} color="#F59E0B" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: theme.text }}>Time Capsules</Text>
+                  <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: theme.textMuted, marginTop: 1 }}>Scheduled messages</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={theme.textMuted} />
+              </Pressable>
+
               {/* Mute toggle */}
               <Pressable
                 onPress={() => { toggleMute(); setShowMenu(false); }}
@@ -1769,6 +1852,12 @@ export default function ChatScreen() {
             blurOnSubmit={appSettings.enterToSend}
           />
         </View>
+
+        {!text.trim() && (
+          <Pressable style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#F59E0B18" }} onPress={() => { setCapsuleText(""); setCapsulePreset(null); setShowCapsule(true); }}>
+            <Feather name="clock" size={18} color="#F59E0B" />
+          </Pressable>
+        )}
 
         {!text.trim() && (
           <Pressable style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setShowAttach(true)}>
@@ -2044,6 +2133,132 @@ export default function ChatScreen() {
               ))}
             </ScrollView>
           </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ──── Time Capsule scheduling sheet ──── */}
+      <Modal visible={showCapsule} transparent animationType="slide" onRequestClose={() => setShowCapsule(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }} onPress={() => setShowCapsule(false)}>
+          <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 28 }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: theme.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 18 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#F59E0B18", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="clock" size={22} color="#F59E0B" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text }}>Time Capsule</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 2 }}>Schedule a message for the future</Text>
+              </View>
+            </View>
+
+            {/* Message input */}
+            <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: theme.textMuted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Message</Text>
+            <View style={{ backgroundColor: theme.background, borderRadius: 14, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 20, minHeight: 72 }}>
+              <TextInput
+                value={capsuleText}
+                onChangeText={setCapsuleText}
+                placeholder="Write your message..."
+                placeholderTextColor={theme.textMuted}
+                multiline
+                style={{ color: theme.text, fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 21 }}
+              />
+            </View>
+
+            {/* Time presets */}
+            <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: theme.textMuted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>Deliver When</Text>
+            <View style={{ gap: 8, marginBottom: 20 }}>
+              {CAPSULE_PRESETS.map(preset => {
+                const active = capsulePreset === preset.key;
+                return (
+                  <Pressable key={preset.key} onPress={() => setCapsulePreset(preset.key)}
+                    style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", paddingVertical: 13, paddingHorizontal: 16, borderRadius: 14, backgroundColor: active ? "#F59E0B18" : pressed ? `${theme.text}08` : theme.background, borderWidth: 1.5, borderColor: active ? "#F59E0B" : theme.border })}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: active ? "Inter_700Bold" : "Inter_600SemiBold", fontSize: 15, color: active ? "#F59E0B" : theme.text }}>{preset.label}</Text>
+                      <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: theme.textMuted, marginTop: 1 }}>{preset.sub}</Text>
+                    </View>
+                    {active && <Feather name="check-circle" size={18} color="#F59E0B" />}
+                  </Pressable>
+                );
+              })}
+              {capsulePreset === "custom" && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 }}>
+                  <Text style={{ color: theme.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>In</Text>
+                  <View style={{ backgroundColor: theme.background, borderRadius: 10, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, paddingVertical: 8, width: 80 }}>
+                    <TextInput value={capsuleCustomHours} onChangeText={setCapsuleCustomHours} keyboardType="decimal-pad" style={{ color: theme.text, fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center" }} />
+                  </View>
+                  <Text style={{ color: theme.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>hours from now</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Schedule button */}
+            <Pressable
+              onPress={scheduleCapsule}
+              disabled={schedulingCapsule}
+              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: pressed ? "#D97706" : "#F59E0B", borderRadius: 16, paddingVertical: 15 })}
+            >
+              {schedulingCapsule
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <><Feather name="send" size={17} color="#fff" /><Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>Schedule Message</Text></>}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ──── Scheduled messages list ──── */}
+      <Modal visible={showScheduled} transparent animationType="slide" onRequestClose={() => setShowScheduled(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }} onPress={() => setShowScheduled(false)}>
+          <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 28, maxHeight: "75%" }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: theme.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#F59E0B18", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="clock" size={22} color="#F59E0B" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text }}>Time Capsules</Text>
+                <Text style={{ fontSize: 12, color: theme.textMuted, fontFamily: "Inter_400Regular", marginTop: 2 }}>{scheduledMsgs.length} pending message{scheduledMsgs.length !== 1 ? "s" : ""}</Text>
+              </View>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {scheduledMsgs.length === 0
+                ? <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                    <Text style={{ fontSize: 40, marginBottom: 10 }}>⏰</Text>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 16, color: theme.text }}>No scheduled messages</Text>
+                    <Text style={{ fontFamily: "Inter_400Regular", fontSize: 13, color: theme.textMuted, marginTop: 4 }}>Tap the clock icon in the input bar to schedule one</Text>
+                  </View>
+                : scheduledMsgs.map(msg => {
+                    const date = new Date(msg.scheduledAt);
+                    return (
+                      <View key={msg.id} style={{ backgroundColor: theme.background, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#F59E0B33", borderLeftWidth: 3, borderLeftColor: "#F59E0B" }}>
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: "Inter_400Regular", fontSize: 14, color: theme.text, lineHeight: 20 }} numberOfLines={3}>{msg.content}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 7 }}>
+                              <Feather name="clock" size={12} color="#F59E0B" />
+                              <Text style={{ fontSize: 12, color: "#F59E0B", fontFamily: "Inter_600SemiBold" }}>{date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · {date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                            </View>
+                          </View>
+                          <Pressable
+                            onPress={() => {
+                              Alert.alert("Cancel Time Capsule", "This message will not be sent.", [
+                                { text: "Keep it", style: "cancel" },
+                                { text: "Cancel", style: "destructive", onPress: () => cancelCapsule(msg.id) },
+                              ]);
+                            }}
+                            style={({ pressed }) => ({ padding: 8, borderRadius: 8, backgroundColor: pressed ? "#ff444418" : "transparent" })}
+                          >
+                            {cancellingCapsule === msg.id
+                              ? <ActivityIndicator size="small" color="#ff4444" />
+                              : <Feather name="x-circle" size={20} color="#ff4444" />}
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })
+              }
+            </ScrollView>
+          </View>
         </Pressable>
       </Modal>
 

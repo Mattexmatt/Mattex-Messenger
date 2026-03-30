@@ -13,6 +13,7 @@ import blocksRouter from "./blocks";
 import mattexRouter from "./mattex";
 import sessionsRouter from "./sessions";
 import adminRouter from "./admin";
+import scheduledRouter from "./scheduled";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(blocksRouter);
 router.use("/mattex", mattexRouter);
 router.use("/sessions", sessionsRouter);
 router.use("/admin", adminRouter);
+router.use("/scheduled", scheduledRouter);
 
 export default router;

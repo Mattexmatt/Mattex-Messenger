@@ -2,6 +2,7 @@ import http from "http";
 import app from "./app";
 import { setupWS } from "./ws";
 import { logger } from "./lib/logger";
+import { deliverDueMessages } from "./routes/scheduled";
 
 const rawPort = process.env["PORT"];
 
@@ -25,3 +26,7 @@ server.listen(port, (err?: Error) => {
   }
   logger.info({ port }, "Server listening");
 });
+
+// Run the time-capsule delivery worker every 30 seconds
+setInterval(deliverDueMessages, 30_000);
+deliverDueMessages(); // run once on startup too
