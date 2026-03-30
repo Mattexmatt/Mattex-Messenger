@@ -20,6 +20,7 @@ import { playSendSound, playReceiveSound, initSoundSettings } from "@/utils/soun
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import Svg, { Defs, Pattern, Rect, Path as SvgPath, Circle as SvgCircle } from "react-native-svg";
 import UserBadge from "@/components/UserBadge";
 
@@ -413,6 +414,68 @@ function AudioBubble({ content, isOwn, theme }: { content: string; isOwn: boolea
   );
 }
 
+// ─── Music Bubble ──────────────────────────────────────────────────────────────
+function MusicBubble({ content, isOwn, theme }: { content: string; isOwn: boolean; theme: any }) {
+  const isDark = !!(theme as any).isDark;
+  const ownText = isDark ? "#ffffff" : theme.text;
+  const ownMuted = isDark ? "rgba(255,255,255,0.60)" : theme.textMuted;
+  const barFilled = isDark ? "#ffffff" : "#ec4899";
+  const barEmpty = isDark ? "rgba(255,255,255,0.40)" : "#ec489955";
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => () => { soundRef.current?.unloadAsync().catch(() => {}); }, []);
+
+  // extract name
+  const nameMatch = content.match(/;name=([^;]+);base64,/);
+  const fileName = nameMatch ? decodeURIComponent(nameMatch[1]) : "Music file";
+  const ext = content.slice("data:music/".length, content.indexOf(";")).toUpperCase() || "AUDIO";
+
+  const toggle = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Music", "Audio playback is available in the native Expo Go app");
+      return;
+    }
+    try {
+      if (playing) { await soundRef.current?.pauseAsync(); setPlaying(false); return; }
+      if (!soundRef.current) {
+        const raw = content.split(";base64,")[1];
+        const tmpPath = FileSystem.cacheDirectory + `music_${Date.now()}.${ext.toLowerCase()}`;
+        await FileSystem.writeAsStringAsync(tmpPath, raw, { encoding: FileSystem.EncodingType.Base64 });
+        const { sound } = await Audio.Sound.createAsync({ uri: tmpPath }, { shouldPlay: true });
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((s: any) => {
+          if (s.isLoaded) {
+            setPos(s.durationMillis ? s.positionMillis / s.durationMillis : 0);
+            if (s.didJustFinish) { setPlaying(false); setPos(0); soundRef.current?.unloadAsync().catch(() => {}); soundRef.current = null; }
+          }
+        });
+        setPlaying(true);
+      } else { await soundRef.current.playAsync(); setPlaying(true); }
+    } catch { Alert.alert("Error", "Could not play music file"); }
+  };
+
+  const bars = [4, 7, 11, 8, 13, 9, 6, 12, 8, 5, 10, 7, 4, 9, 6];
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minWidth: 200 }}>
+      <Pressable onPress={toggle} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#ec4899", alignItems: "center", justifyContent: "center" }}>
+        <Feather name={playing ? "pause" : "play"} size={18} color="#fff" />
+      </Pressable>
+      <View style={{ flex: 1, gap: 5 }}>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: isOwn ? ownText : theme.text }} numberOfLines={1}>{fileName}</Text>
+        <View style={{ flexDirection: "row", gap: 2, alignItems: "flex-end", height: 18 }}>
+          {bars.map((h, i) => {
+            const filled = pos > 0 && i / bars.length < pos;
+            return <View key={i} style={{ width: 2.5, height: h, borderRadius: 2, backgroundColor: filled ? barFilled : barEmpty }} />;
+          })}
+        </View>
+        <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: isOwn ? ownMuted : theme.textMuted }}>{ext} · Music</Text>
+      </View>
+    </View>
+  );
+}
+
 // ─── Chat wallpaper ────────────────────────────────────────────────────────────
 function ChatWallpaper({ isDark }: { isDark: boolean }) {
   const bg = isDark ? "#0a131a" : "#dfe7ec";
@@ -786,6 +849,24 @@ export default function ChatScreen() {
     } catch { Alert.alert("Error", "Could not attach media"); }
   }, []);
 
+  // ── Music attach ───────────────────────────────────────────────────────────────
+  const pickMusic = useCallback(async () => {
+    setShowAttach(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: "audio/*", copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (asset.size && asset.size > 10 * 1024 * 1024) {
+        Alert.alert("File too large", "Please pick a music file under 10 MB.");
+        return;
+      }
+      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const name = asset.name ?? "audio";
+      const ext = name.split(".").pop()?.toLowerCase() ?? "mp3";
+      await sendMsg(`data:music/${ext};name=${encodeURIComponent(name)};base64,${b64}`, "audio");
+    } catch { Alert.alert("Error", "Could not attach music file"); }
+  }, [sendMsg]);
+
   const sendPreviewAsset = useCallback(async () => {
     if (!previewAsset) return;
     const assetCopy = { ...previewAsset };
@@ -1037,7 +1118,9 @@ export default function ChatScreen() {
                     )}
 
                     {item.type === "audio" && !item.content.startsWith("{") ? (
-                      <AudioBubble content={item.content} isOwn={isOwn} theme={theme} />
+                      item.content.startsWith("data:music/")
+                        ? <MusicBubble content={item.content} isOwn={isOwn} theme={theme} />
+                        : <AudioBubble content={item.content} isOwn={isOwn} theme={theme} />
                     ) : (item.type === "call" || (item.content.startsWith("{") && item.content.includes('"status"'))) ? (
                       (() => {
                         let callMeta: { type: string; status: string; duration?: number } = { type: "audio", status: "missed" };
@@ -1754,46 +1837,34 @@ export default function ChatScreen() {
         </Modal>
       )}
 
-      {/* Attach bottom sheet */}
+      {/* Attach bottom sheet — Telegram style */}
       <Modal visible={showAttach} transparent animationType="slide" onRequestClose={() => setShowAttach(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={() => setShowAttach(false)}>
-          <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 8, paddingBottom: insets.bottom + 20 }}>
-            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: "center", marginBottom: 20 }} />
-            <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text, paddingHorizontal: 24, marginBottom: 16 }}>Attach</Text>
-
-            {/* 2-column grid of options */}
-            <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 12, marginBottom: 16 }}>
-              {[
-                { icon: "image", label: "Photo", sub: "Gallery", color: "#6366f1", onPress: () => pickImage("gallery", "image") },
-                { icon: "video", label: "Video", sub: "Gallery", color: "#f59e0b", onPress: () => pickImage("gallery", "video") },
-                { icon: "camera", label: "Camera", sub: "Take photo", color: "#22c55e", onPress: () => pickImage("camera", "image") },
-                { icon: "film", label: "Record", sub: "Take video", color: "#ef4444", onPress: () => pickImage("camera", "video") },
-              ].map((opt) => (
+        <Pressable style={{ flex: 1, justifyContent: "flex-end" }} onPress={() => setShowAttach(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: theme.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 10, paddingBottom: insets.bottom + 28 }}>
+            {/* handle */}
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: "center", marginBottom: 22 }} />
+            {/* icon row */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 28, gap: 28 }}>
+              {([
+                { icon: "image",  label: "Photo",    color: "#6366f1", onPress: () => pickImage("gallery", "image") },
+                { icon: "video",  label: "Video",    color: "#f59e0b", onPress: () => pickImage("gallery", "video") },
+                { icon: "camera", label: "Camera",   color: "#22c55e", onPress: () => pickImage("camera",  "image") },
+                { icon: "film",   label: "Record",   color: "#ef4444", onPress: () => pickImage("camera",  "video") },
+                { icon: "music",  label: "Music",    color: "#ec4899", onPress: pickMusic },
+              ] as { icon: string; label: string; color: string; onPress: () => void }[]).map((opt) => (
                 <Pressable
                   key={opt.label}
                   onPress={opt.onPress}
-                  style={({ pressed }) => ({
-                    width: "47%", borderRadius: 16, borderWidth: 1, borderColor: theme.border,
-                    backgroundColor: pressed ? theme.surfaceElevated : theme.surface,
-                    padding: 16, alignItems: "center", gap: 8, opacity: pressed ? 0.8 : 1,
-                  })}
+                  style={({ pressed }) => ({ alignItems: "center", gap: 10, opacity: pressed ? 0.7 : 1 })}
                 >
-                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: `${opt.color}18`, alignItems: "center", justifyContent: "center" }}>
-                    <Feather name={opt.icon as any} size={24} color={opt.color} />
+                  <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: opt.color, alignItems: "center", justifyContent: "center", shadowColor: opt.color, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 5 }}>
+                    <Feather name={opt.icon as any} size={26} color="#fff" />
                   </View>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text }}>{opt.label}</Text>
-                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textMuted }}>{opt.sub}</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: theme.text }}>{opt.label}</Text>
                 </Pressable>
               ))}
-            </View>
-
-            <Pressable
-              onPress={() => setShowAttach(false)}
-              style={({ pressed }) => ({ marginHorizontal: 24, borderRadius: 14, height: 50, backgroundColor: pressed ? theme.border : theme.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.border })}
-            >
-              <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.textSecondary }}>Cancel</Text>
-            </Pressable>
-          </View>
+            </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
 
