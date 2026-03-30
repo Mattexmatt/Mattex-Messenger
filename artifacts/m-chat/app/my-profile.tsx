@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, Pressable, ScrollView, TextInput,
-  Modal, ActivityIndicator, Alert, Platform, Image
+  Modal, ActivityIndicator, Alert, Platform, Image, Share
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import QRCode from "react-native-qrcode-svg";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
@@ -43,6 +44,7 @@ export default function MyProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const [showEdit, setShowEdit] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [avatarUri, setAvatarUri] = useState<string>(user?.avatarUrl ?? "");
   const [avatarChanged, setAvatarChanged] = useState(false);
@@ -319,7 +321,188 @@ export default function MyProfileScreen() {
           <View style={{ marginTop: 10 }}>
             <UserBadge isOwner={user.isOwner} role={user.role} size="lg" />
           </View>
+
+          {/* QR Share button — combined IG/Snap/Telegram style */}
+          <Pressable
+            onPress={() => setShowQR(true)}
+            style={({ pressed }) => ({
+              marginTop: 20, flexDirection: "row", alignItems: "center", gap: 8,
+              paddingHorizontal: 20, paddingVertical: 10,
+              borderRadius: 24, overflow: "hidden",
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <LinearGradient
+              colors={["#F58529", "#DD2A7B", "#8134AF", "#515BD4"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{
+                position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 24,
+              }}
+            />
+            <Feather name="grid" size={15} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 }}>My QR Code</Text>
+          </Pressable>
         </LinearGradient>
+
+        {/* ── QR Profile Card Modal ── */}
+        <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
+          <Pressable
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", alignItems: "center", justifyContent: "center", padding: 24 }}
+            onPress={() => setShowQR(false)}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 340 }}>
+
+              {/* Outer gradient frame — Instagram ring effect */}
+              <LinearGradient
+                colors={["#F58529", "#DD2A7B", "#8134AF", "#515BD4", "#25D366"]}
+                start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }}
+                style={{ borderRadius: 30, padding: 3 }}
+              >
+                {/* Inner card */}
+                <View style={{ borderRadius: 28, overflow: "hidden", backgroundColor: isDark ? "#0F0F1A" : "#FFFFFF" }}>
+
+                  {/* Header gradient band */}
+                  <LinearGradient
+                    colors={user.isOwner ? ["#1a0033", "#2d0057", "#1a0033"] : [isDark ? "#1a1a2e" : "#EEF2FF", isDark ? "#16213e" : "#E0E7FF", isDark ? "#1a1a2e" : "#EEF2FF"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={{ paddingTop: 28, paddingBottom: 24, alignItems: "center", paddingHorizontal: 24 }}
+                  >
+                    {/* Corner accent dots — Snapchat ghost DNA */}
+                    <View style={{ position: "absolute", top: 12, left: 16, flexDirection: "row", gap: 4 }}>
+                      {["#F58529","#DD2A7B","#8134AF"].map((c, i) => (
+                        <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c, opacity: 0.7 }} />
+                      ))}
+                    </View>
+                    <View style={{ position: "absolute", top: 12, right: 16, flexDirection: "row", gap: 4 }}>
+                      {["#515BD4","#25D366","#0088cc"].map((c, i) => (
+                        <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c, opacity: 0.7 }} />
+                      ))}
+                    </View>
+
+                    {/* Avatar with IG-style ring */}
+                    <LinearGradient
+                      colors={["#F58529", "#DD2A7B", "#8134AF", "#515BD4"]}
+                      start={{ x: 0.2, y: 1 }} end={{ x: 1, y: 0.2 }}
+                      style={{ width: 80, height: 80, borderRadius: 40, padding: 3, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <View style={{ width: 74, height: 74, borderRadius: 37, backgroundColor: isDark ? "#0F0F1A" : "#fff", alignItems: "center", justifyContent: "center" }}>
+                        {user.avatarUrl ? (
+                          <Image source={{ uri: user.avatarUrl }} style={{ width: 70, height: 70, borderRadius: 35 }} />
+                        ) : (
+                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: `${primary}22`, alignItems: "center", justifyContent: "center" }}>
+                            <Text style={{ fontSize: 30, color: primary, fontFamily: "Inter_700Bold" }}>{user.displayName[0].toUpperCase()}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
+
+                    <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: isDark ? "#fff" : "#1a1a2e", marginTop: 12 }}>{user.displayName}</Text>
+
+                    {/* Telegram-style username pill */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6,
+                      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                      borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 }}
+                    >
+                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: "#0088cc", alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 8, color: "#fff", fontFamily: "Inter_700Bold" }}>t</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: isDark ? "#A0AEC0" : "#4A5568", fontFamily: "Inter_500Medium" }}>@{user.username}</Text>
+                    </View>
+
+                    {user.isOwner && (
+                      <Text style={{ fontSize: 10, color: "rgba(255,215,0,0.7)", fontFamily: "Inter_400Regular", marginTop: 4 }}>
+                        Founder · Allan Matt Tech
+                      </Text>
+                    )}
+                  </LinearGradient>
+
+                  {/* QR Code area — Snapchat-inspired with logo center */}
+                  <View style={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 24, backgroundColor: isDark ? "#0F0F1A" : "#fff" }}>
+
+                    {/* QR frame with corner brackets */}
+                    <View style={{ position: "relative", padding: 16,
+                      backgroundColor: isDark ? "#141428" : "#F7F7FF",
+                      borderRadius: 20, borderWidth: 1, borderColor: isDark ? "#2a2a4a" : "#E8EAFF"
+                    }}>
+                      {/* Corner brackets (Snapcode style) */}
+                      {[
+                        { top: 8, left: 8, borderTopWidth: 3, borderLeftWidth: 3 },
+                        { top: 8, right: 8, borderTopWidth: 3, borderRightWidth: 3 },
+                        { bottom: 8, left: 8, borderBottomWidth: 3, borderLeftWidth: 3 },
+                        { bottom: 8, right: 8, borderBottomWidth: 3, borderRightWidth: 3 },
+                      ].map((style, i) => (
+                        <View key={i} style={[{ position: "absolute", width: 20, height: 20, borderColor: primary, borderRadius: 4 }, style]} />
+                      ))}
+
+                      <QRCode
+                        value={`mchat://user/${user.username}`}
+                        size={160}
+                        color={isDark ? "#E8EAFF" : "#1a1a2e"}
+                        backgroundColor={isDark ? "#141428" : "#F7F7FF"}
+                        logo={user.avatarUrl ? { uri: user.avatarUrl } : undefined}
+                        logoSize={36}
+                        logoBackgroundColor={isDark ? "#141428" : "#F7F7FF"}
+                        logoBorderRadius={18}
+                        logoMargin={4}
+                        quietZone={4}
+                      />
+                    </View>
+
+                    {/* "M Chat" branding pill — mixed Snap + Telegram */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14,
+                      backgroundColor: `${primary}18`, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6,
+                    }}>
+                      <LinearGradient
+                        colors={["#8134AF", "#515BD4"]}
+                        style={{ width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" }}
+                      >
+                        <Text style={{ fontSize: 9, color: "#fff", fontFamily: "Inter_700Bold" }}>M</Text>
+                      </LinearGradient>
+                      <Text style={{ fontSize: 12, color: primary, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 }}>M Chat · Scan to connect</Text>
+                    </View>
+
+                  </View>
+
+                  {/* Action row — Telegram-style buttons */}
+                  <View style={{ flexDirection: "row", gap: 0, borderTopWidth: 1, borderTopColor: isDark ? "#1e1e38" : "#E8EAFF" }}>
+                    <Pressable
+                      onPress={() => {
+                        Share.share({ message: `Add me on M Chat! @${user.username}`, title: `${user.displayName} on M Chat` }).catch(() => {});
+                      }}
+                      style={({ pressed }) => ({
+                        flex: 1, paddingVertical: 16, alignItems: "center", justifyContent: "center",
+                        flexDirection: "row", gap: 8,
+                        backgroundColor: pressed ? `${primary}15` : "transparent",
+                        borderBottomLeftRadius: 28,
+                      })}
+                    >
+                      <LinearGradient colors={["#F58529","#DD2A7B","#8134AF"]} start={{x:0,y:0}} end={{x:1,y:0}} style={{width:20,height:20,borderRadius:10,alignItems:"center",justifyContent:"center"}}>
+                        <Feather name="share-2" size={11} color="#fff" />
+                      </LinearGradient>
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: primary }}>Share</Text>
+                    </Pressable>
+
+                    <View style={{ width: 1, backgroundColor: isDark ? "#1e1e38" : "#E8EAFF" }} />
+
+                    <Pressable
+                      onPress={() => setShowQR(false)}
+                      style={({ pressed }) => ({
+                        flex: 1, paddingVertical: 16, alignItems: "center", justifyContent: "center",
+                        flexDirection: "row", gap: 8,
+                        backgroundColor: pressed ? `${primary}15` : "transparent",
+                        borderBottomRightRadius: 28,
+                      })}
+                    >
+                      <Feather name="x" size={15} color={isDark ? "#888" : "#999"} />
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: isDark ? "#888" : "#999" }}>Close</Text>
+                    </Pressable>
+                  </View>
+
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* Bio */}
         <View style={{ marginHorizontal: 16, marginTop: 20 }}>
