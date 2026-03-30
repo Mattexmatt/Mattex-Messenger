@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import {
   Modal, View, Text, Image, Pressable,
-  Animated, StatusBar, Platform, ImageSourcePropType,
+  Animated, Platform, ImageSourcePropType, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -16,20 +16,21 @@ interface AvatarPreviewProps {
 
 export default function AvatarPreview({ visible, onClose, imageSource, name, subtitle }: AvatarPreviewProps) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.88)).current;
+  const scale = useRef(new Animated.Value(0.92)).current;
+
+  const imgSize = Math.min(screenWidth - 80, 220);
 
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, tension: 100, friction: 12, useNativeDriver: true }),
       ]).start();
     } else {
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 0.88, duration: 150, useNativeDriver: true }),
-      ]).start();
+      opacity.setValue(0);
+      scale.setValue(0.92);
     }
   }, [visible]);
 
@@ -37,50 +38,44 @@ export default function AvatarPreview({ visible, onClose, imageSource, name, sub
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.93)", opacity }}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", alignItems: "center", justifyContent: "center" }} onPress={onClose}>
+        <Animated.View
+          style={{ alignItems: "center", opacity, transform: [{ scale }] }}
+          onStartShouldSetResponder={() => true}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
+          {/* Image */}
+          <Image
+            source={imageSource as any}
+            style={{ width: imgSize, height: imgSize, borderRadius: imgSize / 2, borderWidth: 3, borderColor: "rgba(255,255,255,0.15)" }}
+            resizeMode="cover"
+          />
 
-        {/* Top bar — name + close */}
-        <View style={{
-          paddingTop: insets.top + (Platform.OS === "web" ? 72 : 12),
-          paddingHorizontal: 16, paddingBottom: 12,
-          flexDirection: "row", alignItems: "center", gap: 12,
-        }}>
-          <Pressable
-            onPress={onClose}
-            hitSlop={12}
-            style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, backgroundColor: pressed ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" })}
-          >
-            <Feather name="arrow-left" size={20} color="#fff" />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: "#fff" }} numberOfLines={1}>{name}</Text>
+          {/* Name + subtitle */}
+          <View style={{ marginTop: 16, alignItems: "center", gap: 3 }}>
+            <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff" }}>{name}</Text>
             {subtitle ? (
-              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", fontFamily: "Inter_400Regular", marginTop: 1 }} numberOfLines={1}>{subtitle}</Text>
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular" }}>{subtitle}</Text>
             ) : null}
           </View>
-          <Pressable
-            onPress={onClose}
-            hitSlop={12}
-            style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, backgroundColor: pressed ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" })}
-          >
-            <Feather name="x" size={20} color="#fff" />
-          </Pressable>
-        </View>
+        </Animated.View>
 
-        {/* Image — centered, animated */}
-        <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center" }} onPress={onClose}>
-          <Animated.View style={{ transform: [{ scale }] }}>
-            <Image
-              source={imageSource as any}
-              style={{ width: 320, height: 320, borderRadius: 12 }}
-              resizeMode="cover"
-            />
-          </Animated.View>
+        {/* Close button */}
+        <Pressable
+          onPress={onClose}
+          hitSlop={12}
+          style={({ pressed }) => ({
+            position: "absolute",
+            top: insets.top + (Platform.OS === "web" ? 72 : 14),
+            right: 16,
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: pressed ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)",
+            alignItems: "center", justifyContent: "center",
+          })}
+        >
+          <Feather name="x" size={18} color="#fff" />
         </Pressable>
-
-        {/* Bottom safe padding */}
-        <View style={{ height: insets.bottom + 24 }} />
-      </Animated.View>
+      </Pressable>
     </Modal>
   );
 }
