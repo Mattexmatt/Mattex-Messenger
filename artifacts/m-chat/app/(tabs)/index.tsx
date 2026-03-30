@@ -430,8 +430,63 @@ export default function ChatsScreen() {
           onRefresh={refetch}
           refreshing={false}
           ListHeaderComponent={
-            <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
-              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.textSecondary, letterSpacing: 0.5 }}>MESSAGES</Text>
+            <View>
+              <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
+                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.textSecondary, letterSpacing: 0.5 }}>MESSAGES</Text>
+              </View>
+
+              {/* ── Mattex AI pinned entry ── */}
+              <Pressable
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center",
+                  paddingHorizontal: 20, paddingVertical: 12, gap: 14,
+                  opacity: pressed ? 0.75 : 1,
+                  backgroundColor: `${theme.primary}08`,
+                })}
+                onPress={() => router.push("/(tabs)/ai" as any)}
+              >
+                {/* Avatar with gradient */}
+                <View style={{ width: 56, height: 56, borderRadius: 28, overflow: "hidden", position: "relative" }}>
+                  <View style={{ flex: 1, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 28 }}>🤖</Text>
+                  </View>
+                  {/* Verified badge overlay */}
+                  <View style={{
+                    position: "absolute", bottom: -1, right: -1,
+                    width: 20, height: 20, borderRadius: 10,
+                    backgroundColor: "#1D9BF0",
+                    alignItems: "center", justifyContent: "center",
+                    borderWidth: 2, borderColor: theme.background,
+                  }}>
+                    <Feather name="check" size={10} color="#fff" />
+                  </View>
+                </View>
+
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {/* Name + badge row */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>Mattex AI</Text>
+                    {/* M Chat Verified pill */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#1D9BF015", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#1D9BF030" }}>
+                      <Feather name="check-circle" size={10} color="#1D9BF0" />
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#1D9BF0", letterSpacing: 0.5 }}>M CHAT</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 13, color: theme.textMuted, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+                    Your intelligent M Chat assistant
+                  </Text>
+                </View>
+
+                {/* Bot badge + chevron */}
+                <View style={{ alignItems: "flex-end", gap: 6 }}>
+                  <View style={{ backgroundColor: `${theme.primary}22`, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: theme.primary, letterSpacing: 0.5 }}>BOT</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={theme.textMuted} />
+                </View>
+              </Pressable>
+
+              <View style={{ height: 1, backgroundColor: theme.border, marginLeft: 90 }} />
             </View>
           }
           renderItem={({ item }) => {
