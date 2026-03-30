@@ -446,28 +446,19 @@ export default function ChatsScreen() {
                 })}
                 onPress={() => router.push("/(tabs)/ai" as any)}
               >
-                {/* Avatar with gradient */}
-                <View style={{ width: 56, height: 56, borderRadius: 28, overflow: "hidden", position: "relative" }}>
-                  <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
-                  {/* Verified badge overlay */}
-                  <View style={{
-                    position: "absolute", bottom: -1, right: -1,
-                    width: 20, height: 20, borderRadius: 10,
-                    backgroundColor: "#1D9BF0",
-                    alignItems: "center", justifyContent: "center",
-                    borderWidth: 2, borderColor: theme.background,
-                  }}>
-                    <Feather name="check" size={10} color="#fff" />
-                  </View>
-                </View>
+                {/* Avatar */}
+                <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
 
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  {/* Name + badge row */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  {/* Name + verified tick + badge row */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 2 }}>
                     <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>Mattex AI</Text>
-                    {/* M Chat Verified pill */}
+                    {/* Verified tick after name */}
+                    <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#1D9BF0", alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="check" size={9} color="#fff" />
+                    </View>
+                    {/* M Chat pill */}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#1D9BF015", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#1D9BF030" }}>
-                      <Feather name="check-circle" size={10} color="#1D9BF0" />
                       <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#1D9BF0", letterSpacing: 0.5 }}>M CHAT</Text>
                     </View>
                   </View>
