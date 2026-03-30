@@ -12,6 +12,7 @@ import {
   sendLoginAlertEmail,
 } from "../emailService";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
+import { recordNewAccount } from "../lib/sentinel";
 
 const router: IRouter = Router();
 
@@ -45,12 +46,13 @@ async function recordSession(
 
 // POST /auth/register
 router.post("/register", async (req, res) => {
-  const { username, password, displayName, avatarUrl, email } = req.body as {
+  const { username, password, displayName, avatarUrl, email, deviceId } = req.body as {
     username?: string;
     password?: string;
     displayName?: string;
     avatarUrl?: string;
     email?: string;
+    deviceId?: string;
   };
 
   if (!username || !password || !displayName) {
@@ -115,8 +117,12 @@ router.post("/register", async (req, res) => {
     }).catch(() => {});
   }
 
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? undefined;
+  recordNewAccount(ip ?? "unknown");
+
   const jti = makeJti();
-  const token = jwt.sign({ userId: user.id, jti }, JWT_SECRET, { expiresIn: "30d" });
+  const resolvedDeviceId = deviceId ?? (req.headers["x-device-id"] as string | undefined);
+  const token = jwt.sign({ userId: user.id, jti, ...(resolvedDeviceId ? { deviceId: resolvedDeviceId } : {}) }, JWT_SECRET, { expiresIn: "30d" });
   await recordSession(user.id, jti, req as any);
 
   res.json({
@@ -138,9 +144,10 @@ router.post("/register", async (req, res) => {
 
 // POST /auth/login
 router.post("/login", async (req, res) => {
-  const { username, password } = req.body as {
+  const { username, password, deviceId } = req.body as {
     username?: string;
     password?: string;
+    deviceId?: string;
   };
 
   if (!username || !password) {
@@ -166,7 +173,8 @@ router.post("/login", async (req, res) => {
   }
 
   const jti = makeJti();
-  const token = jwt.sign({ userId: user.id, jti }, JWT_SECRET, { expiresIn: "30d" });
+  const resolvedDeviceId = deviceId ?? (req.headers["x-device-id"] as string | undefined);
+  const token = jwt.sign({ userId: user.id, jti, ...(resolvedDeviceId ? { deviceId: resolvedDeviceId } : {}) }, JWT_SECRET, { expiresIn: "30d" });
   await recordSession(user.id, jti, req as any);
 
   // Send login alert if email on file (non-blocking)

@@ -4,6 +4,8 @@ import { conversationsTable, messagesTable, usersTable } from "@workspace/db/sch
 import { eq, or, and, desc, ne, isNull, count, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import { detectSpam } from "../spamDetector";
+import { checkMessageVelocity, checkDuplicateContent, isBanned } from "../lib/sentinel";
+import { messageLimiter } from "../middlewares/rateLimiter";
 
 const router: IRouter = Router();
 
@@ -277,12 +279,33 @@ router.post("/:conversationId/messages/:messageId/view", requireAuth, async (req
   res.json({ ok: true });
 });
 
-router.post("/:conversationId/messages", requireAuth, async (req: AuthRequest, res) => {
+router.post("/:conversationId/messages", requireAuth, messageLimiter, async (req: AuthRequest, res) => {
   const conversationId = parseInt(req.params.conversationId);
   const { content, type = "text", viewOnce = 0 } = req.body;
 
   if (!content) {
     res.status(400).json({ error: "content required" });
+    return;
+  }
+
+  const userId = req.userId!;
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+
+  const ban = isBanned(userId, ip);
+  if (ban) {
+    const remaining = Math.ceil((ban.expiresAt - Date.now()) / 60_000);
+    res.status(429).json({ error: `Restricted: ${ban.reason}. Try again in ${remaining} minute${remaining !== 1 ? "s" : ""}.` });
+    return;
+  }
+
+  const velocity = checkMessageVelocity(userId, ip);
+  if (velocity.blocked) {
+    res.status(429).json({ error: velocity.reason });
+    return;
+  }
+
+  if (type === "text" && checkDuplicateContent(userId, content)) {
+    res.status(429).json({ error: "You are sending too many identical messages." });
     return;
   }
 

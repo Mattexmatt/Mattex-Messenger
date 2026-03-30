@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { aiChatsTable, usersTable } from "@workspace/db/schema";
 import { eq, asc, desc, count } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
+import { aiLimiter } from "../middlewares/rateLimiter";
 
 const router: IRouter = Router();
 
@@ -114,7 +115,7 @@ router.post("/translate", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /mattex/chat — text (+ optional vision image)
-router.post("/chat", requireAuth, async (req: AuthRequest, res) => {
+router.post("/chat", requireAuth, aiLimiter, async (req: AuthRequest, res) => {
   const { message, imageBase64, imageMimeType } = req.body as {
     message: string;
     imageBase64?: string;

@@ -48,9 +48,11 @@ export default function RegisterScreen() {
     setLoading(true);
     setError("");
     try {
+      const { getOrCreateDeviceId } = await import("@/utils/api");
+      const deviceId = await getOrCreateDeviceId();
       const data = await apiRequest("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ username: username.trim(), displayName: displayName.trim(), password, ...(email.trim() ? { email: email.trim() } : {}) }),
+        body: JSON.stringify({ username: username.trim(), displayName: displayName.trim(), password, deviceId, ...(email.trim() ? { email: email.trim() } : {}) }),
       });
       await login(data.token, data.user);
       router.replace("/(tabs)");

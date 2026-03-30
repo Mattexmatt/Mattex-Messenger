@@ -14,6 +14,7 @@ import mattexRouter from "./mattex";
 import sessionsRouter from "./sessions";
 import adminRouter from "./admin";
 import scheduledRouter from "./scheduled";
+import sentinelRouter from "./sentinel";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use("/mattex", mattexRouter);
 router.use("/sessions", sessionsRouter);
 router.use("/admin", adminRouter);
 router.use("/scheduled", scheduledRouter);
+router.use("/sentinel", sentinelRouter);
 
 export default router;

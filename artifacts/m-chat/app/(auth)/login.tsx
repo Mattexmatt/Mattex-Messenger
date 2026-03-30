@@ -60,9 +60,11 @@ export default function LoginScreen() {
     setLoading(true);
     setError("");
     try {
+      const { getOrCreateDeviceId } = await import("@/utils/api");
+      const deviceId = await getOrCreateDeviceId();
       const data = await apiRequest("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({ username: username.trim(), password, deviceId }),
       });
       await login(data.token, data.user);
       router.replace("/(tabs)");
