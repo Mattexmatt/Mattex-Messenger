@@ -29,7 +29,7 @@ interface Message {
   conversationId: number;
   senderId: number;
   content: string;
-  type: "text" | "audio" | "image" | "video" | "call";
+  type: "text" | "audio" | "image" | "video" | "call" | "document";
   isDeleted?: number;
   deletedForIds?: string;
   spamFlag?: string | null;
@@ -218,13 +218,14 @@ function SwipeableRow({ onReply, children }: { onReply: () => void; children: Re
 
 // ─── Reaction picker modal ─────────────────────────────────────────────────────
 function ReactionPicker({
-  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, onEdit, theme,
+  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, onEdit, onForward, theme,
 }: {
   message: Message; isOwn: boolean;
   onSelect: (emoji: string) => void; onClose: () => void;
   onReply: () => void; onDeleteForMe: () => void; onDeleteForAll: () => void;
   onStar: () => void; isStarred: boolean;
   onEdit: () => void;
+  onForward: () => void;
   theme: any;
 }) {
   const mainContent = message.content.startsWith("↩ \"")
@@ -287,6 +288,13 @@ function ReactionPicker({
                 >
                   <Feather name="copy" size={15} color={theme.textSecondary} />
                   <Text style={{ color: theme.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Copy</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: pressed ? "#6366f130" : "#6366f118", borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: "#6366f133" })}
+                  onPress={() => { onForward(); onClose(); }}
+                >
+                  <Feather name="share" size={15} color="#6366f1" />
+                  <Text style={{ color: "#6366f1", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Forward</Text>
                 </Pressable>
                 {isOwn && message.type === "text" && (
                   <Pressable
@@ -476,6 +484,47 @@ function MusicBubble({ content, isOwn, theme }: { content: string; isOwn: boolea
   );
 }
 
+// ─── Document Bubble ───────────────────────────────────────────────────────────
+const DOC_COLORS: Record<string, string> = {
+  pdf: "#ef4444", doc: "#3b82f6", docx: "#3b82f6", xls: "#22c55e", xlsx: "#22c55e",
+  ppt: "#f97316", pptx: "#f97316", zip: "#eab308", rar: "#eab308", txt: "#6b7280",
+  csv: "#10b981", json: "#8b5cf6",
+};
+function DocumentBubble({ content, isOwn, theme }: { content: string; isOwn: boolean; theme: any }) {
+  const isDark = !!(theme as any).isDark;
+  const ownText = isDark ? "#fff" : theme.text;
+  const ownMuted = isDark ? "rgba(255,255,255,0.60)" : theme.textMuted;
+
+  let name = "Document", ext = "FILE", sizeStr = "";
+  try {
+    const nameM = content.match(/;name=([^;]+);/);
+    const sizeM = content.match(/;size=(\d+);/);
+    if (nameM) name = decodeURIComponent(nameM[1]);
+    ext = (content.slice("data:doc/".length, content.indexOf(";")).toUpperCase() || name.split(".").pop()?.toUpperCase() || "FILE");
+    if (sizeM) {
+      const bytes = parseInt(sizeM[1], 10);
+      sizeStr = bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+    }
+  } catch {}
+
+  const extColor = DOC_COLORS[ext.toLowerCase()] ?? "#6b7280";
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minWidth: 200 }}>
+      <View style={{ width: 48, height: 54, borderRadius: 8, backgroundColor: `${extColor}22`, alignItems: "center", justifyContent: "space-between", paddingVertical: 6, borderWidth: 1, borderColor: `${extColor}44` }}>
+        <Feather name="file-text" size={20} color={extColor} />
+        <View style={{ backgroundColor: extColor, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3 }}>
+          <Text style={{ fontSize: 8, fontFamily: "Inter_700Bold", color: "#fff", letterSpacing: 0.5 }}>{ext.slice(0, 4)}</Text>
+        </View>
+      </View>
+      <View style={{ flex: 1, gap: 3 }}>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: isOwn ? ownText : theme.text }} numberOfLines={2}>{name}</Text>
+        {!!sizeStr && <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: isOwn ? ownMuted : theme.textMuted }}>{sizeStr} · {ext}</Text>}
+      </View>
+    </View>
+  );
+}
+
 // ─── Chat wallpaper ────────────────────────────────────────────────────────────
 function ChatWallpaper({ isDark }: { isDark: boolean }) {
   const bg = isDark ? "#0a131a" : "#dfe7ec";
@@ -595,6 +644,10 @@ export default function ChatScreen() {
 
   // Attach sheet state
   const [showAttach, setShowAttach] = useState(false);
+  // Forward state
+  const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const [showForwardPicker, setShowForwardPicker] = useState(false);
+  const [forwardConvs, setForwardConvs] = useState<any[]>([]);
   // Image/Video preview before send
   const [previewAsset, setPreviewAsset] = useState<PreviewAsset | null>(null);
   // Upload progress (0-100) for pending sends
@@ -848,6 +901,61 @@ export default function ChatScreen() {
       }
     } catch { Alert.alert("Error", "Could not attach media"); }
   }, []);
+
+  // ── Document attach ─────────────────────────────────────────────────────────────
+  const pickDocument = useCallback(async () => {
+    setShowAttach(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (asset.size && asset.size > 10 * 1024 * 1024) {
+        Alert.alert("File too large", "Please pick a file under 10 MB.");
+        return;
+      }
+      const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const name = asset.name ?? "document";
+      const ext = name.split(".").pop()?.toLowerCase() ?? "bin";
+      const size = asset.size ?? 0;
+      const content = `data:doc/${ext};name=${encodeURIComponent(name)};size=${size};base64,${b64}`;
+      await apiRequest(`/conversations/${id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content, type: "document" }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    } catch { Alert.alert("Error", "Could not attach document"); }
+  }, [id, token]);
+
+  // ── Forward message ──────────────────────────────────────────────────────────
+  const openForward = useCallback(async (msg: Message) => {
+    setForwardMsg(msg);
+    try {
+      const convs = await apiRequest("/conversations");
+      setForwardConvs(convs ?? []);
+    } catch { setForwardConvs([]); }
+    setShowForwardPicker(true);
+  }, [token]);
+
+  const doForward = useCallback(async (targetConvId: number) => {
+    if (!forwardMsg) return;
+    setShowForwardPicker(false);
+    try {
+      let content = forwardMsg.content;
+      // For text messages, prepend forwarded indicator
+      if (forwardMsg.type === "text") {
+        const rawContent = content.startsWith("↩ \"") ? content.split("\n").slice(1).join("\n") : content;
+        content = `[↪fwd]\n${rawContent}`;
+      }
+      await apiRequest(`/conversations/${targetConvId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content, type: forwardMsg.type }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      Alert.alert("Forwarded", "Message forwarded successfully.");
+    } catch { Alert.alert("Error", "Could not forward message"); }
+    setForwardMsg(null);
+  }, [forwardMsg, token]);
 
   // ── Music attach ───────────────────────────────────────────────────────────────
   const pickMusic = useCallback(async () => {
@@ -1196,10 +1304,20 @@ export default function ChatScreen() {
                           )}
                         </View>
                       </Pressable>
+                    ) : item.type === "document" ? (
+                      <DocumentBubble content={item.content} isOwn={isOwn} theme={theme} />
                     ) : (
-                      <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? ownText : theme.text }}>
-                        {mainContent}
-                      </Text>
+                      <>
+                        {mainContent.startsWith("[↪fwd]\n") && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: isOwn ? "rgba(255,255,255,0.25)" : theme.border }}>
+                            <Feather name="share" size={11} color={isOwn ? "rgba(255,255,255,0.7)" : "#6366f1"} />
+                            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: isOwn ? "rgba(255,255,255,0.7)" : "#6366f1" }}>Forwarded</Text>
+                          </View>
+                        )}
+                        <Text style={{ fontSize: fs, fontFamily: "Inter_400Regular", lineHeight: fs * 1.5, color: isOwn ? ownText : theme.text }}>
+                          {mainContent.startsWith("[↪fwd]\n") ? mainContent.slice("[↪fwd]\n".length) : mainContent}
+                        </Text>
+                      </>
                     )}
                   </>
                 )}
@@ -1851,6 +1969,7 @@ export default function ChatScreen() {
                 { icon: "camera", label: "Camera",   color: "#22c55e", onPress: () => pickImage("camera",  "image") },
                 { icon: "film",   label: "Record",   color: "#ef4444", onPress: () => pickImage("camera",  "video") },
                 { icon: "music",  label: "Music",    color: "#ec4899", onPress: pickMusic },
+                { icon: "file",   label: "File",     color: "#3b82f6", onPress: pickDocument },
               ] as { icon: string; label: string; color: string; onPress: () => void }[]).map((opt) => (
                 <Pressable
                   key={opt.label}
@@ -1890,9 +2009,54 @@ export default function ChatScreen() {
             setText(editableContent);
             setTimeout(() => inputRef.current?.focus(), 100);
           }}
+          onForward={() => { openForward(reactionPickerMsg); setReactionPickerMsg(null); }}
           theme={theme}
         />
       )}
+
+      {/* Forward picker modal */}
+      <Modal visible={showForwardPicker} transparent animationType="slide" onRequestClose={() => setShowForwardPicker(false)}>
+        <Pressable style={{ flex: 1, justifyContent: "flex-end" }} onPress={() => setShowForwardPicker(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: theme.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 10, paddingBottom: insets.bottom + 24, maxHeight: "70%" }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text, paddingHorizontal: 20, marginBottom: 12 }}>Forward to…</Text>
+            <ScrollView>
+              {forwardConvs.length === 0 ? (
+                <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", paddingVertical: 32 }}>No conversations found</Text>
+              ) : forwardConvs.map((conv: any) => {
+                const other = conv.otherParticipant ?? conv.participants?.find((p: any) => p.id !== user?.id);
+                const displayName = other?.displayName ?? other?.username ?? "Unknown";
+                const avatarUri = other?.avatarUrl;
+                return (
+                  <Pressable
+                    key={conv.id}
+                    onPress={() => doForward(conv.id)}
+                    style={({ pressed }) => ({
+                      flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20,
+                      paddingVertical: 12, backgroundColor: pressed ? theme.surfaceElevated : "transparent",
+                    })}
+                  >
+                    <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: theme.surfaceElevated, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {avatarUri ? (
+                        <Image source={{ uri: avatarUri }} style={{ width: 46, height: 46, borderRadius: 23 }} />
+                      ) : (
+                        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.primary }}>{displayName.charAt(0).toUpperCase()}</Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text }}>{displayName}</Text>
+                      {conv.lastMessage && (
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textMuted }} numberOfLines={1}>{conv.lastMessage.content?.slice(0, 40)}</Text>
+                      )}
+                    </View>
+                    <Feather name="share" size={16} color={theme.textMuted} />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Block confirmation modal */}
       <Modal visible={showBlockConfirm} transparent animationType="fade" onRequestClose={() => setShowBlockConfirm(false)}>

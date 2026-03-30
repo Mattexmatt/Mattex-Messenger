@@ -559,6 +559,7 @@ export default function ChatsScreen() {
                   >
                     {item.lastMessage
                       ? item.lastMessage.type === "audio" ? (item.lastMessage.content?.startsWith("data:music/") ? "🎵 Music" : "🎤 Voice note")
+                      : item.lastMessage.type === "document" ? "📄 Document"
                       : item.lastMessage.type === "image" ? "🖼️ Image"
                       : item.lastMessage.type === "video" ? "🎥 Video"
                       : item.lastMessage.type === "call" || (item.lastMessage.content?.startsWith("{") && item.lastMessage.content?.includes('"status"'))
