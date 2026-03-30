@@ -582,8 +582,8 @@ export default function AIScreen() {
                 })}
               >
                 {loading
-                  ? <ActivityIndicator size="small" color={theme.primary} />
-                  : <Feather name="arrow-up" size={18} color={(input.trim() || pendingImage) ? theme.background : theme.textMuted} />
+                  ? <ActivityIndicator size="small" color={theme.background} />
+                  : <Feather name="send" size={16} color={(input.trim() || pendingImage) ? theme.background : theme.textMuted} style={{ marginLeft: 2 }} />
                 }
               </Pressable>
             )}
