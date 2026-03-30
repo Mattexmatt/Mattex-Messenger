@@ -235,6 +235,7 @@ export default function ChatsScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
   const [dpPreview, setDpPreview] = useState<{ imageSource: any; name: string; subtitle?: string } | null>(null);
+  const [filter, setFilter] = useState<"all" | "read" | "unread">("all");
   const [peopleSearch, setPeopleSearch] = useState("");
   const menuAnim = useRef(new Animated.Value(0)).current;
   const queryClient = useQueryClient();
@@ -363,6 +364,36 @@ export default function ChatsScreen() {
           )}
         </View>
 
+        {/* Filter tabs */}
+        {!search && (
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+            {(["all", "unread", "read"] as const).map((f) => {
+              const labels = { all: "All", unread: "Unread", read: "Read" };
+              const active = filter === f;
+              return (
+                <Pressable
+                  key={f}
+                  onPress={() => setFilter(f)}
+                  style={{
+                    paddingHorizontal: 18, paddingVertical: 7,
+                    borderRadius: 20,
+                    backgroundColor: active ? theme.primary : `${theme.primary}12`,
+                    borderWidth: 1,
+                    borderColor: active ? theme.primary : `${theme.primary}30`,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 13, fontFamily: active ? "Inter_700Bold" : "Inter_500Medium",
+                    color: active ? "#fff" : theme.primary,
+                  }}>
+                    {labels[f]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         {recentContacts.length > 0 && !search && (
           <ScrollView
             horizontal showsHorizontalScrollIndicator={false}
@@ -428,7 +459,11 @@ export default function ChatsScreen() {
         />
       ) : (
         <FlatList
-          data={conversations ?? []}
+          data={(conversations ?? []).filter(c => {
+            if (filter === "unread") return (c.unreadCount ?? 0) > 0;
+            if (filter === "read") return (c.unreadCount ?? 0) === 0;
+            return true;
+          })}
           keyExtractor={(i) => String(i.id)}
           onRefresh={refetch}
           refreshing={false}
