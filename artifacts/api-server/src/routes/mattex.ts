@@ -88,6 +88,31 @@ router.delete("/history", requireAuth, async (req: AuthRequest, res) => {
   res.json({ ok: true });
 });
 
+// POST /mattex/translate — one-shot translation, no history saved
+router.post("/translate", requireAuth, async (req: AuthRequest, res) => {
+  const { text, targetLanguage } = req.body as { text?: string; targetLanguage?: string };
+  if (!text || !targetLanguage) {
+    res.status(400).json({ error: "text and targetLanguage are required" });
+    return;
+  }
+  const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  if (!baseUrl || !apiKey) { res.status(503).json({ error: "Translation service not configured" }); return; }
+  try {
+    const data = await callGemini(baseUrl, apiKey, "gemini-2.5-flash", {
+      contents: [{
+        role: "user",
+        parts: [{ text: `Translate the following message to ${targetLanguage}. Return ONLY the translated text — no quotes, no explanations, no notes:\n\n${text.trim()}` }],
+      }],
+      generationConfig: { maxOutputTokens: 512, temperature: 0.1 },
+    });
+    const translation: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    res.json({ translation: translation.trim() });
+  } catch {
+    res.status(500).json({ error: "Translation failed" });
+  }
+});
+
 // POST /mattex/chat — text (+ optional vision image)
 router.post("/chat", requireAuth, async (req: AuthRequest, res) => {
   const { message, imageBase64, imageMimeType } = req.body as {

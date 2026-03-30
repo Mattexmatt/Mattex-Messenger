@@ -47,6 +47,7 @@ interface Settings {
   fontSize: "small" | "medium" | "large";
   bubbleStyle: "rounded" | "sharp" | "balloon";
   bubbleColor: string;
+  translateLanguage: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -63,7 +64,15 @@ const DEFAULT_SETTINGS: Settings = {
   fontSize: "medium",
   bubbleStyle: "rounded",
   bubbleColor: "",
+  translateLanguage: "English",
 };
+
+const LANGUAGES = [
+  "English", "Spanish", "French", "German", "Portuguese", "Arabic",
+  "Swahili", "Chinese (Simplified)", "Chinese (Traditional)", "Japanese",
+  "Korean", "Hindi", "Italian", "Russian", "Dutch", "Turkish", "Polish",
+  "Hausa", "Yoruba", "Igbo", "Amharic", "Somali", "Zulu", "Afrikaans",
+];
 
 const BUBBLE_COLORS = [
   { key: "", label: "Default" },
@@ -90,6 +99,7 @@ export default function SettingsScreen() {
   const [showFontSize, setShowFontSize] = useState(false);
   const [showSound, setShowSound] = useState(false);
   const [showBubbleStyle, setShowBubbleStyle] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [showVipManage, setShowVipManage] = useState(false);
@@ -499,7 +509,12 @@ export default function SettingsScreen() {
                 <Feather name="chevron-right" size={17} color={txtMut} />
               </View>
             }
-            onPress={() => setShowBubbleStyle(true)} sep={false}
+            onPress={() => setShowBubbleStyle(true)}
+          />
+          <Row icon="globe" iconColor="#2563EB" label="Translation Language"
+            sublabel="Language to translate messages into"
+            right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{settings.translateLanguage || "English"}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
+            onPress={() => setShowLanguage(true)} sep={false}
           />
         </Section>
 
@@ -785,6 +800,36 @@ export default function SettingsScreen() {
                 );
               })}
             </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Language modal */}
+      <Modal visible={showLanguage} animationType="slide" transparent onRequestClose={() => setShowLanguage(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowLanguage(false)}>
+          <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24, maxHeight: "80%" }} onStartShouldSetResponder={() => true}>
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: "#2563EB18", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="globe" size={20} color="#2563EB" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt }}>Translation Language</Text>
+                <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>Messages will be translated into this language</Text>
+              </View>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {LANGUAGES.map(lang => {
+                const active = (settings.translateLanguage || "English") === lang;
+                return (
+                  <Pressable key={lang} onPress={() => { saveSetting("translateLanguage", lang); setShowLanguage(false); }}
+                    style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 13, paddingHorizontal: 16, borderRadius: 14, marginBottom: 4, backgroundColor: active ? `${primary}18` : pressed ? `${txt}08` : "transparent" })}>
+                    <Text style={{ fontSize: 15, fontFamily: active ? "Inter_700Bold" : "Inter_400Regular", color: active ? primary : txt }}>{lang}</Text>
+                    {active && <Feather name="check" size={18} color={primary} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>

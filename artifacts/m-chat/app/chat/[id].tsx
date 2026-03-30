@@ -218,7 +218,7 @@ function SwipeableRow({ onReply, children }: { onReply: () => void; children: Re
 
 // ─── Reaction picker modal ─────────────────────────────────────────────────────
 function ReactionPicker({
-  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, onEdit, onForward, theme,
+  message, isOwn, onSelect, onClose, onReply, onDeleteForMe, onDeleteForAll, onStar, isStarred, onEdit, onForward, onTranslate, theme,
 }: {
   message: Message; isOwn: boolean;
   onSelect: (emoji: string) => void; onClose: () => void;
@@ -226,6 +226,7 @@ function ReactionPicker({
   onStar: () => void; isStarred: boolean;
   onEdit: () => void;
   onForward: () => void;
+  onTranslate: () => void;
   theme: any;
 }) {
   const mainContent = message.content.startsWith("↩ \"")
@@ -306,6 +307,17 @@ function ReactionPicker({
                   </Pressable>
                 )}
               </View>
+
+              {/* Translate button */}
+              {(message.type === "text" || !message.type) && !message.content.startsWith("data:") && (
+                <Pressable
+                  style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: pressed ? "#2563EB22" : "#2563EB12", borderRadius: 12, paddingVertical: 11, width: "100%", borderWidth: 1, borderColor: "#2563EB30" })}
+                  onPress={() => { onTranslate(); onClose(); }}
+                >
+                  <Feather name="globe" size={15} color="#2563EB" />
+                  <Text style={{ color: "#2563EB", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Translate message</Text>
+                </Pressable>
+              )}
 
               {/* Action buttons — row 2: delete */}
               <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
@@ -583,6 +595,8 @@ export default function ChatScreen() {
   const [reactions, setReactions] = useState<Record<number, string[]>>({});
   const [reactionPickerMsg, setReactionPickerMsg] = useState<Message | null>(null);
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState<string | null>(null);
   const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
@@ -1044,6 +1058,33 @@ export default function ChatScreen() {
     } catch { Alert.alert("Error", "Could not star message"); }
   }, [id, queryClient, appSettings.vibrationEnabled]);
 
+  const translateMsg = useCallback(async (msg: Message) => {
+    const msgKey = String(msg.id);
+    if (translating === msgKey) return;
+    setTranslating(msgKey);
+    try {
+      const stored = await AsyncStorage.getItem("mchat_settings");
+      const parsed = stored ? JSON.parse(stored) : {};
+      const targetLanguage: string = parsed.translateLanguage || "English";
+      const rawText = msg.content.startsWith("↩ \"")
+        ? msg.content.split("\n").slice(1).join("\n")
+        : msg.content;
+      const res = await apiRequest("/mattex/translate", {
+        method: "POST",
+        body: JSON.stringify({ text: rawText, targetLanguage }),
+      });
+      if (res?.translation) {
+        setTranslations(prev => ({ ...prev, [msgKey]: `${res.translation}\n— ${targetLanguage}` }));
+      } else {
+        Alert.alert("Translation failed", "Could not translate this message.");
+      }
+    } catch {
+      Alert.alert("Translation failed", "Could not reach the translation service.");
+    } finally {
+      setTranslating(null);
+    }
+  }, [translating]);
+
   const addReaction = (msgId: number, emoji: string) => {
     setReactions(prev => {
       const current = prev[msgId] ?? [];
@@ -1337,6 +1378,25 @@ export default function ChatScreen() {
                     <Text style={{ fontSize: 11, color: theme.primary, fontFamily: "Inter_600SemiBold" }}>1</Text>
                   </Pressable>
                 ))}
+              </View>
+            )}
+
+            {/* Translation card */}
+            {(translating === String(item.id) || translations[String(item.id)]) && (
+              <View style={{ marginTop: 5, maxWidth: "82%", alignSelf: isOwn ? "flex-end" : "flex-start", backgroundColor: theme.surfaceElevated, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: "#2563EB33", borderLeftWidth: 3, borderLeftColor: "#2563EB" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                  <Feather name="globe" size={11} color="#2563EB" />
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#2563EB", textTransform: "uppercase", letterSpacing: 0.6 }}>Translation</Text>
+                </View>
+                {translating === String(item.id)
+                  ? <ActivityIndicator size="small" color="#2563EB" style={{ alignSelf: "flex-start" }} />
+                  : <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: theme.text, lineHeight: 19 }}>{translations[String(item.id)]}</Text>
+                }
+                {translations[String(item.id)] && (
+                  <Pressable onPress={() => setTranslations(prev => { const n = { ...prev }; delete n[String(item.id)]; return n; })} style={{ marginTop: 5, alignSelf: "flex-start" }}>
+                    <Text style={{ fontSize: 11, color: theme.textMuted, fontFamily: "Inter_400Regular" }}>Dismiss</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -2010,6 +2070,7 @@ export default function ChatScreen() {
             setTimeout(() => inputRef.current?.focus(), 100);
           }}
           onForward={() => { openForward(reactionPickerMsg); setReactionPickerMsg(null); }}
+          onTranslate={() => translateMsg(reactionPickerMsg)}
           theme={theme}
         />
       )}
