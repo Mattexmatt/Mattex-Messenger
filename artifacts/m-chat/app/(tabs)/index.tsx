@@ -234,7 +234,7 @@ export default function ChatsScreen() {
   const [searching, setSearching] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
-  const [showMattexPreview, setShowMattexPreview] = useState(false);
+  const [dpPreview, setDpPreview] = useState<{ imageSource: any; name: string; subtitle?: string } | null>(null);
   const [peopleSearch, setPeopleSearch] = useState("");
   const menuAnim = useRef(new Animated.Value(0)).current;
   const queryClient = useQueryClient();
@@ -449,7 +449,7 @@ export default function ChatsScreen() {
                 onPress={() => router.push("/(tabs)/ai" as any)}
               >
                 {/* Avatar */}
-                <Pressable onPress={(e) => { e.stopPropagation?.(); setShowMattexPreview(true); }} hitSlop={4}>
+                <Pressable onPress={(e) => { e.stopPropagation?.(); setDpPreview({ imageSource: mattexAvatar, name: "Mattex AI", subtitle: "Your intelligent M Chat assistant" }); }} hitSlop={4}>
                   <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                 </Pressable>
 
@@ -500,7 +500,17 @@ export default function ChatsScreen() {
                 {hasUnread && (
                   <View style={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 3, borderRadius: 2, backgroundColor: theme.primary }} />
                 )}
-                <AvatarCircle user={item.otherUser} size={56} theme={theme} />
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    if (item.otherUser.avatarUrl) {
+                      setDpPreview({ imageSource: { uri: item.otherUser.avatarUrl }, name: item.otherUser.displayName });
+                    }
+                  }}
+                  hitSlop={4}
+                >
+                  <AvatarCircle user={item.otherUser} size={56} theme={theme} />
+                </Pressable>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
                     <Text style={{ fontSize: 16, fontFamily: hasUnread ? "Inter_700Bold" : "Inter_600SemiBold", color: theme.text }} numberOfLines={1}>
@@ -657,14 +667,16 @@ export default function ChatsScreen() {
         </Modal>
       )}
 
-      {/* Mattex AI avatar full-screen preview */}
-      <AvatarPreview
-        visible={showMattexPreview}
-        onClose={() => setShowMattexPreview(false)}
-        imageSource={mattexAvatar}
-        name="Mattex AI"
-        subtitle="Your intelligent M Chat assistant"
-      />
+      {/* DP preview — works for all chats + Mattex AI */}
+      {dpPreview && (
+        <AvatarPreview
+          visible={!!dpPreview}
+          onClose={() => setDpPreview(null)}
+          imageSource={dpPreview.imageSource}
+          name={dpPreview.name}
+          subtitle={dpPreview.subtitle}
+        />
+      )}
     </View>
   );
 }
