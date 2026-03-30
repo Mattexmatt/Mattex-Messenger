@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, Pressable, StyleSheet, TextInput,
   ActivityIndicator, Image, Platform, ScrollView, Modal, Animated
 } from "react-native";
+const mattexAvatar = require("@/assets/images/mattex-avatar.png");
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -447,9 +448,7 @@ export default function ChatsScreen() {
               >
                 {/* Avatar with gradient */}
                 <View style={{ width: 56, height: 56, borderRadius: 28, overflow: "hidden", position: "relative" }}>
-                  <View style={{ flex: 1, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ fontSize: 28 }}>🤖</Text>
-                  </View>
+                  <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                   {/* Verified badge overlay */}
                   <View style={{
                     position: "absolute", bottom: -1, right: -1,

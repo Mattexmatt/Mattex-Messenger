@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, Pressable, ScrollView,
   Animated, Easing, Image,
 } from "react-native";
+const mattexAvatar = require("@/assets/images/mattex-avatar.png");
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -306,12 +307,7 @@ export default function AIScreen() {
     }
     return (
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 20, paddingHorizontal: 16 }}>
-        <LinearGradient
-          colors={["#8B5CF6", "#6366F1", "#3B82F6"]}
-          style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 }}
-        >
-          <Text style={{ fontSize: 14, color: "#fff" }}>✦</Text>
-        </LinearGradient>
+        <Image source={mattexAvatar} style={{ width: 32, height: 32, borderRadius: 16, marginTop: 2, flexShrink: 0 }} resizeMode="cover" />
         <View style={{ flex: 1, gap: 8 }}>
           <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.primary }}>Mattex AI</Text>
           {item.content ? (
@@ -350,9 +346,7 @@ export default function AIScreen() {
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <LinearGradient colors={["#8B5CF6", "#6366F1", "#3B82F6"]} style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontSize: 18, color: "#fff" }}>✦</Text>
-          </LinearGradient>
+          <Image source={mattexAvatar} style={{ width: 38, height: 38, borderRadius: 12 }} resizeMode="cover" />
           <View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: theme.text }}>Mattex AI</Text>
@@ -378,9 +372,7 @@ export default function AIScreen() {
       {/* ── Loading ── */}
       {!historyLoaded ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14 }}>
-          <LinearGradient colors={["#8B5CF6", "#6366F1", "#3B82F6"]} style={{ width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontSize: 26, color: "#fff" }}>✦</Text>
-          </LinearGradient>
+          <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
           <ActivityIndicator color={theme.primary} />
           <Text style={{ color: theme.textMuted, fontSize: 13, fontFamily: "Inter_400Regular" }}>Loading conversations…</Text>
         </View>
@@ -388,14 +380,7 @@ export default function AIScreen() {
         /* ── WELCOME STATE ── */
         <ScrollView contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 120 : insets.bottom + 120 }} showsVerticalScrollIndicator={false}>
           <View style={{ alignItems: "center", paddingTop: 32, paddingBottom: 28, paddingHorizontal: 24 }}>
-            <LinearGradient
-              colors={["#8B5CF622", "#6366F122", "#3B82F622"]}
-              style={{ width: 80, height: 80, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 20, borderWidth: 1.5, borderColor: "#8B5CF633" }}
-            >
-              <LinearGradient colors={["#8B5CF6", "#6366F1", "#3B82F6"]} style={{ width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 30, color: "#fff" }}>✦</Text>
-              </LinearGradient>
-            </LinearGradient>
+            <Image source={mattexAvatar} style={{ width: 80, height: 80, borderRadius: 24, marginBottom: 20 }} resizeMode="cover" />
             <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: theme.text, textAlign: "center", letterSpacing: -0.5 }}>
               {getGreeting()}{user?.displayName ? `,\n${user.displayName.split(" ")[0]}` : ""}
             </Text>
@@ -447,9 +432,7 @@ export default function AIScreen() {
           ListFooterComponent={
             (loading || processingVoice) ? (
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 16, marginBottom: 8 }}>
-                <LinearGradient colors={["#8B5CF6", "#6366F1", "#3B82F6"]} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Text style={{ fontSize: 14, color: "#fff" }}>✦</Text>
-                </LinearGradient>
+                <Image source={mattexAvatar} style={{ width: 32, height: 32, borderRadius: 16, flexShrink: 0 }} resizeMode="cover" />
                 <View style={{ paddingTop: 4 }}>
                   <ThinkingDots color={theme.primary} />
                 </View>
