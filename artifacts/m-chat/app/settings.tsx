@@ -329,6 +329,75 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
+        {/* ── M CHAT PREMIUM ── */}
+        <View style={{ marginTop: 20, marginHorizontal: 16 }}>
+          <LinearGradient
+            colors={user?.isOwner ? ["#0a0018", "#1a0035", "#0d001f"] : ["#0d0d0d", "#1a1a1a", "#0d0d0d"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={{ borderRadius: 20, borderWidth: 1.5, borderColor: user?.isOwner ? "#9333ea66" : "#ffffff18", overflow: "hidden" }}
+          >
+            {/* Shine strip */}
+            <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, backgroundColor: user?.isOwner ? "#c084fc55" : "#ffffff22" }} />
+
+            <View style={{ padding: 18, flexDirection: "row", alignItems: "center", gap: 16 }}>
+              {/* Icon */}
+              <LinearGradient
+                colors={user?.isOwner ? ["#9333ea", "#6d28d9", "#4c1d95"] : ["#3a3a3a", "#2a2a2a"]}
+                style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", shadowColor: user?.isOwner ? "#9333ea" : "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 8 }}
+              >
+                <Text style={{ fontSize: 26 }}>💎</Text>
+              </LinearGradient>
+
+              {/* Text */}
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: user?.isOwner ? "#c084fc" : "#ffffff" }}>
+                    M Chat Premium
+                  </Text>
+                  {user?.isOwner ? (
+                    <View style={{ backgroundColor: "#9333ea33", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2.5, borderWidth: 1, borderColor: "#9333ea66" }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#c084fc", letterSpacing: 0.8 }}>ACTIVE</Text>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: "#ffffff12", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2.5, borderWidth: 1, borderColor: "#ffffff22" }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#888", letterSpacing: 0.8 }}>COMING SOON</Text>
+                    </View>
+                  )}
+                </View>
+                {user?.isOwner ? (
+                  <Text style={{ fontSize: 12, color: "rgba(192,132,252,0.65)", fontFamily: "Inter_400Regular" }}>
+                    All features unlocked · Founder access
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", fontFamily: "Inter_400Regular" }}>
+                    Exclusive features · Badges · Priority support
+                  </Text>
+                )}
+              </View>
+
+              {/* Right arrow / lock */}
+              {user?.isOwner ? (
+                <Feather name="check-circle" size={20} color="#9333ea" />
+              ) : (
+                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#ffffff0d", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="lock" size={15} color="#555" />
+                </View>
+              )}
+            </View>
+
+            {/* Feature pills (only for non-owners as a teaser) */}
+            {!user?.isOwner && (
+              <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 18, paddingBottom: 16, flexWrap: "wrap" }}>
+                {["💎 Premium Badge", "🎨 Exclusive Themes", "📌 Pinned Chats", "⚡ Priority Support"].map(f => (
+                  <View key={f} style={{ backgroundColor: "#ffffff08", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#ffffff12" }}>
+                    <Text style={{ fontSize: 11, color: "#666", fontFamily: "Inter_500Medium" }}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </LinearGradient>
+        </View>
+
         {/* ── ACCOUNT ── */}
         <Section title="Account">
           <Row
