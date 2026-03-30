@@ -27,13 +27,30 @@ interface Message {
   createdAt?: string;
 }
 
+const CATEGORIES = ["All", "Write", "Imagine", "Code", "Analyze", "Fun"];
+
 const SUGGESTIONS = [
-  { icon: "zap", label: "Quick summary", prompt: "Give me a quick summary of what you can help me with" },
-  { icon: "edit-3", label: "Help me write", prompt: "Help me write a short professional message" },
-  { icon: "code", label: "Write code", prompt: "Help me write a simple function in JavaScript" },
-  { icon: "image", label: "Generate image", prompt: "Generate an image of a futuristic city at night with neon lights" },
-  { icon: "globe", label: "Explain this", prompt: "Explain how AI language models work in simple terms" },
-  { icon: "trending-up", label: "Productivity", prompt: "Give me your best productivity tip for today" },
+  { icon: "edit-3",    label: "Draft an email",  tagline: "Professional & clear",  prompt: "Help me write a professional email to my team about an upcoming project update", category: "Write",   color: "#6366f1" },
+  { icon: "file-text", label: "Write a bio",      tagline: "Introduce yourself",    prompt: "Help me write a short, engaging professional bio for my social media profile",   category: "Write",   color: "#8b5cf6" },
+  { icon: "message-square", label: "Craft a reply", tagline: "The right words",   prompt: "Help me craft a polite and professional reply to a difficult message I received", category: "Write",   color: "#a78bfa" },
+  { icon: "pen-tool",  label: "Caption this",     tagline: "Social media ready",    prompt: "Write me 3 creative captions I can use for a photo on social media",              category: "Write",   color: "#7c3aed" },
+  { icon: "image",     label: "Neon city",         tagline: "Futuristic skyline",   prompt: "Generate an image of a futuristic city at night with neon lights and rain reflections on the streets", category: "Imagine", color: "#ec4899" },
+  { icon: "aperture",  label: "Fantasy scene",     tagline: "Magical world",        prompt: "Generate an image of a mystical enchanted forest at dusk with glowing mushrooms and fireflies",        category: "Imagine", color: "#f43f5e" },
+  { icon: "cpu",       label: "Abstract art",      tagline: "Pure creativity",      prompt: "Generate a vivid abstract digital art piece with bold flowing colors and geometric shapes",             category: "Imagine", color: "#e879f9" },
+  { icon: "code",      label: "JS snippet",        tagline: "Quick function",       prompt: "Write me a useful JavaScript utility function I can use in a web project today",  category: "Code",    color: "#22c55e" },
+  { icon: "terminal",  label: "Debug with me",     tagline: "Step-by-step",         prompt: "I have a bug I can't fix. Guide me through a step-by-step debugging process",    category: "Code",    color: "#10b981" },
+  { icon: "git-branch",label: "Explain code",      tagline: "Plain English",        prompt: "Take a piece of code I describe and explain exactly what it does in simple terms", category: "Code",    color: "#059669" },
+  { icon: "trending-up",label: "Tech trends",      tagline: "Stay ahead",           prompt: "What are the most important technology trends to watch in 2025 and why?",         category: "Analyze", color: "#f59e0b" },
+  { icon: "bar-chart-2",label: "Explain data",     tagline: "Make it simple",       prompt: "Explain the difference between correlation and causation using a real-world example", category: "Analyze", color: "#d97706" },
+  { icon: "zap",       label: "Fun fact",          tagline: "Surprise me!",         prompt: "Tell me a mind-blowing fun fact that most people don't know",                    category: "Fun",     color: "#ef4444" },
+  { icon: "smile",     label: "Tell a joke",       tagline: "Lighten the mood",     prompt: "Tell me a clever, clean joke that will genuinely make me smile",                 category: "Fun",     color: "#f97316" },
+  { icon: "music",     label: "Playlist vibe",     tagline: "Set the mood",         prompt: "Suggest a playlist theme and 5 song recommendations perfect for deep focus",     category: "Fun",     color: "#06b6d4" },
+];
+
+const FOLLOW_UPS = [
+  "Tell me more ✨", "Give an example 💡", "Summarize that 📋",
+  "Explain simpler 🔍", "What else? 🔄", "Pros and cons ⚖️",
+  "Step-by-step 📝", "Why is that? 🤔", "Any alternatives? 🌀",
 ];
 
 function getGreeting() {
@@ -106,8 +123,13 @@ export default function AIScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+
+  const filteredSuggestions = selectedCategory === "All"
+    ? SUGGESTIONS
+    : SUGGESTIONS.filter(s => s.category === selectedCategory);
 
   const scrollToEnd = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120);
@@ -401,25 +423,49 @@ export default function AIScreen() {
               ))}
             </View>
           </View>
-          <View style={{ paddingHorizontal: 16 }}>
-            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: theme.textMuted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12, marginLeft: 4 }}>Try asking…</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {SUGGESTIONS.map(s => (
-                <Pressable
-                  key={s.label}
-                  onPress={() => sendMessage(s.prompt)}
-                  style={({ pressed }) => ({
-                    flexDirection: "row", alignItems: "center", gap: 8,
-                    backgroundColor: pressed ? `${theme.primary}22` : theme.surface,
-                    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
-                    borderWidth: 1, borderColor: pressed ? `${theme.primary}55` : theme.border,
-                  })}
-                >
-                  <Feather name={s.icon as any} size={14} color={theme.primary} />
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: theme.text }}>{s.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+          {/* ── Category tabs ── */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 4 }}>
+            {CATEGORIES.map(cat => (
+              <Pressable
+                key={cat}
+                onPress={() => setSelectedCategory(cat)}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20,
+                  backgroundColor: selectedCategory === cat ? theme.primary : (pressed ? `${theme.primary}18` : theme.surface),
+                  borderWidth: 1.5,
+                  borderColor: selectedCategory === cat ? theme.primary : theme.border,
+                })}
+              >
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: selectedCategory === cat ? "#fff" : theme.textSecondary }}>
+                  {cat}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* ── Suggestion cards (2-column grid) ── */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 10, marginTop: 16 }}>
+            {filteredSuggestions.map(s => (
+              <Pressable
+                key={s.label}
+                onPress={() => sendMessage(s.prompt)}
+                style={({ pressed }) => ({
+                  width: "47.5%", borderRadius: 16,
+                  backgroundColor: pressed ? theme.surfaceElevated : theme.surface,
+                  borderWidth: 1, borderColor: theme.border,
+                  overflow: "hidden", opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <View style={{ height: 4, backgroundColor: s.color }} />
+                <View style={{ padding: 14, gap: 8 }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: `${s.color}20`, alignItems: "center", justifyContent: "center" }}>
+                    <Feather name={s.icon as any} size={18} color={s.color} />
+                  </View>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: theme.text, lineHeight: 18 }}>{s.label}</Text>
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textMuted, lineHeight: 15 }}>{s.tagline}</Text>
+                </View>
+              </Pressable>
+            ))}
           </View>
         </ScrollView>
       ) : (
@@ -459,6 +505,31 @@ export default function AIScreen() {
             </Pressable>
           </View>
         </View>
+      )}
+
+      {/* ── Contextual follow-up chips (shown after last AI response) ── */}
+      {hasMessages && !loading && !processingVoice && !input.trim() &&
+        messages[messages.length - 1]?.role === "assistant" && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}
+          style={{ flexShrink: 0 }}
+        >
+          {FOLLOW_UPS.map(chip => (
+            <Pressable
+              key={chip}
+              onPress={() => sendMessage(chip)}
+              style={({ pressed }) => ({
+                paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+                backgroundColor: pressed ? `${theme.primary}22` : theme.surface,
+                borderWidth: 1, borderColor: pressed ? `${theme.primary}55` : theme.border,
+              })}
+            >
+              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: theme.text }}>{chip}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       )}
 
       {/* ── Input bar ── */}
