@@ -157,6 +157,16 @@ export default function AIScreen() {
     setIsRecording(true);
   }, []);
 
+  const cancelRecording = useCallback(async () => {
+    if (!recording) return;
+    setIsRecording(false);
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+    } catch {}
+    setRecording(null);
+  }, [recording]);
+
   const stopRecording = useCallback(async () => {
     if (!recording) return;
     setIsRecording(false);
@@ -473,16 +483,33 @@ export default function AIScreen() {
         {isRecording ? (
           /* Recording state */
           <View style={{
-            flexDirection: "row", alignItems: "center", gap: 12,
+            flexDirection: "row", alignItems: "center", gap: 10,
             backgroundColor: theme.surface, borderRadius: 28,
             borderWidth: 1.5, borderColor: "#EF444466",
-            paddingHorizontal: 18, paddingVertical: 14,
+            paddingHorizontal: 12, paddingVertical: 10,
           }}>
-            <RecordingTimer color={theme.text} />
-            <Text style={{ flex: 1, color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 14 }}>Recording… tap ■ to send</Text>
+            {/* Cancel button */}
+            <Pressable
+              onPress={cancelRecording}
+              style={({ pressed }) => ({
+                width: 42, height: 42, borderRadius: 21,
+                backgroundColor: pressed ? `${theme.border}cc` : `${theme.border}88`,
+                alignItems: "center", justifyContent: "center",
+              })}
+            >
+              <Feather name="x" size={18} color={theme.textMuted} />
+            </Pressable>
+
+            {/* Timer + label */}
+            <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
+              <RecordingTimer color={theme.text} />
+              <Text style={{ color: theme.textMuted, fontFamily: "Inter_400Regular", fontSize: 11 }}>Tap ✕ to cancel · ■ to send</Text>
+            </View>
+
+            {/* Send / stop button */}
             <Pressable
               onPress={stopRecording}
-              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" }}
+              style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" }}
             >
               <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: "#fff" }} />
             </Pressable>
