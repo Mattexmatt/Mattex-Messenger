@@ -15,6 +15,7 @@ import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/utils/api";
+import AvatarPreview from "@/components/AvatarPreview";
 
 interface Message {
   id: string;
@@ -98,6 +99,7 @@ export default function AIScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
@@ -346,7 +348,9 @@ export default function AIScreen() {
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Image source={mattexAvatar} style={{ width: 38, height: 38, borderRadius: 12 }} resizeMode="cover" />
+          <Pressable onPress={() => setShowAvatarPreview(true)} hitSlop={6}>
+            <Image source={mattexAvatar} style={{ width: 38, height: 38, borderRadius: 12 }} resizeMode="cover" />
+          </Pressable>
           <View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: theme.text }}>Mattex AI</Text>
@@ -580,6 +584,15 @@ export default function AIScreen() {
           Mattex AI · Vision, Voice & Image Generation
         </Text>
       </View>
+
+      {/* Avatar full-screen preview */}
+      <AvatarPreview
+        visible={showAvatarPreview}
+        onClose={() => setShowAvatarPreview(false)}
+        imageSource={mattexAvatar}
+        name="Mattex AI"
+        subtitle="Vision · Voice · Image Generation"
+      />
     </View>
   );
 }

@@ -15,6 +15,7 @@ import { apiRequest } from "@/utils/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import AvatarPreview from "@/components/AvatarPreview";
 import { playSendSound, playReceiveSound, initSoundSettings } from "@/utils/sounds";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
@@ -471,6 +472,7 @@ export default function ChatScreen() {
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [typingStatus, setTypingStatus] = useState<{ type: "typing" | "recording" } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [showMedia, setShowMedia] = useState(false);
   const [mediaViewer, setMediaViewer] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -1172,7 +1174,7 @@ export default function ChatScreen() {
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
         <Pressable
-          onPress={() => router.push({ pathname: "/user/[id]", params: { id: otherUserId, name, username, avatarUrl: avatarUrl ?? "" } })}
+          onPress={() => avatarUrl ? setShowAvatarPreview(true) : router.push({ pathname: "/user/[id]", params: { id: otherUserId, name, username, avatarUrl: avatarUrl ?? "" } })}
           style={{ borderRadius: 20 }}
         >
           {avatarUrl ? (
@@ -1183,7 +1185,10 @@ export default function ChatScreen() {
             </View>
           )}
         </Pressable>
-        <View style={{ flex: 1 }}>
+        <Pressable
+          style={{ flex: 1 }}
+          onPress={() => router.push({ pathname: "/user/[id]", params: { id: otherUserId, name, username, avatarUrl: avatarUrl ?? "" } })}
+        >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text }}>{name}</Text>
             <UserBadge isOwner={otherIsOwner} role={otherRole} size="sm" />
@@ -1202,7 +1207,7 @@ export default function ChatScreen() {
               {headerStatus.text}
             </Text>
           </View>
-        </View>
+        </Pressable>
         <View style={{ flexDirection: "row", gap: 4 }}>
           <Pressable
             style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${theme.primary}18`, alignItems: "center", justifyContent: "center" }}
@@ -1847,6 +1852,14 @@ export default function ChatScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Avatar full-screen preview */}
+      <AvatarPreview
+        visible={showAvatarPreview}
+        onClose={() => setShowAvatarPreview(false)}
+        imageSource={avatarUrl ? { uri: avatarUrl } : null}
+        name={name ?? ""}
+      />
     </KeyboardAvoidingView>
   );
 }

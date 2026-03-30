@@ -12,6 +12,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { apiRequest } from "@/utils/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import UserBadge from "@/components/UserBadge";
+import AvatarPreview from "@/components/AvatarPreview";
 
 interface ConvUser {
   id: number; username: string; displayName: string; avatarUrl?: string | null; isOwner: boolean; role?: string; createdAt: string;
@@ -233,6 +234,7 @@ export default function ChatsScreen() {
   const [searching, setSearching] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
+  const [showMattexPreview, setShowMattexPreview] = useState(false);
   const [peopleSearch, setPeopleSearch] = useState("");
   const menuAnim = useRef(new Animated.Value(0)).current;
   const queryClient = useQueryClient();
@@ -447,7 +449,9 @@ export default function ChatsScreen() {
                 onPress={() => router.push("/(tabs)/ai" as any)}
               >
                 {/* Avatar */}
-                <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
+                <Pressable onPress={(e) => { e.stopPropagation?.(); setShowMattexPreview(true); }} hitSlop={4}>
+                  <Image source={mattexAvatar} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
+                </Pressable>
 
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {/* Name + verified tick + badge row */}
@@ -652,6 +656,15 @@ export default function ChatsScreen() {
           </Pressable>
         </Modal>
       )}
+
+      {/* Mattex AI avatar full-screen preview */}
+      <AvatarPreview
+        visible={showMattexPreview}
+        onClose={() => setShowMattexPreview(false)}
+        imageSource={mattexAvatar}
+        name="Mattex AI"
+        subtitle="Your intelligent M Chat assistant"
+      />
     </View>
   );
 }
