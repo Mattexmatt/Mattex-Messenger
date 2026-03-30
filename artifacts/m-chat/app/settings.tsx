@@ -46,6 +46,7 @@ interface Settings {
   autoSaveMedia: boolean;
   fontSize: "small" | "medium" | "large";
   bubbleStyle: "rounded" | "sharp" | "balloon";
+  bubbleColor: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -61,7 +62,20 @@ const DEFAULT_SETTINGS: Settings = {
   autoSaveMedia: false,
   fontSize: "medium",
   bubbleStyle: "rounded",
+  bubbleColor: "",
 };
+
+const BUBBLE_COLORS = [
+  { key: "", label: "Default" },
+  { key: "#2563EB", label: "Blue" },
+  { key: "#7C3AED", label: "Purple" },
+  { key: "#059669", label: "Green" },
+  { key: "#DC2626", label: "Red" },
+  { key: "#D97706", label: "Amber" },
+  { key: "#DB2777", label: "Pink" },
+  { key: "#0891B2", label: "Cyan" },
+  { key: "#374151", label: "Slate" },
+];
 
 export default function SettingsScreen() {
   const { theme, themeName, setTheme, displayMode, setDisplayMode } = useTheme();
@@ -476,9 +490,15 @@ export default function SettingsScreen() {
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14, textTransform: "capitalize" }}>{settings.fontSize}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
             onPress={() => setShowFontSize(true)}
           />
-          <Row icon="message-square" iconColor={theme.success} label="Bubble Style"
-            sublabel="Shape of message bubbles"
-            right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14, textTransform: "capitalize" }}>{settings.bubbleStyle}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
+          <Row icon="message-square" iconColor={theme.success} label="Chat Bubble"
+            sublabel="Shape and colour of message bubbles"
+            right={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: settings.bubbleColor || primary, borderWidth: 1.5, borderColor: border }} />
+                <Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14, textTransform: "capitalize" }}>{settings.bubbleStyle}</Text>
+                <Feather name="chevron-right" size={17} color={txtMut} />
+              </View>
+            }
             onPress={() => setShowBubbleStyle(true)} sep={false}
           />
         </Section>
@@ -689,24 +709,82 @@ export default function SettingsScreen() {
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setShowBubbleStyle(false)}>
           <View style={{ backgroundColor: surf, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }} onStartShouldSetResponder={() => true}>
             <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Bubble Style</Text>
-            {([
-              { key: "rounded", label: "Rounded", desc: "Modern pill-shaped bubbles", radius: 20 },
-              { key: "sharp", label: "Sharp", desc: "Clean square corners", radius: 6 },
-              { key: "balloon", label: "Balloon", desc: "Extra round & playful", radius: 28 },
-            ] as const).map(opt => (
-              <Pressable key={opt.key} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1.5, gap: 14, backgroundColor: settings.bubbleStyle === opt.key ? `${primary}22` : theme.surfaceElevated, borderColor: settings.bubbleStyle === opt.key ? primary : border }}
-                onPress={() => { saveSetting("bubbleStyle", opt.key); setShowBubbleStyle(false); }}>
-                <View style={{ width: 52, height: 28, borderRadius: opt.radius, backgroundColor: primary, alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ color: bg, fontSize: 11, fontFamily: "Inter_600SemiBold" }}>Hi!</Text>
+            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: txt, marginBottom: 16 }}>Chat Bubble</Text>
+
+            {/* ── Live preview ── */}
+            {(() => {
+              const previewColor = settings.bubbleColor || primary;
+              const previewRadius = settings.bubbleStyle === "sharp" ? 6 : settings.bubbleStyle === "balloon" ? 28 : 18;
+              return (
+                <View style={{ backgroundColor: theme.background, borderRadius: 16, padding: 14, marginBottom: 20, gap: 10 }}>
+                  {/* Received bubble */}
+                  <View style={{ flexDirection: "row", justifyContent: "flex-start" }}>
+                    <View style={{ backgroundColor: theme.bubble, borderRadius: previewRadius, borderBottomLeftRadius: 4, paddingHorizontal: 13, paddingVertical: 8, maxWidth: "70%", borderWidth: 1, borderColor: border }}>
+                      <Text style={{ fontSize: 14, color: txt, fontFamily: "Inter_400Regular" }}>Hey! How's it going? 👋</Text>
+                    </View>
+                  </View>
+                  {/* Own bubble */}
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+                    <View style={{ backgroundColor: previewColor, borderRadius: previewRadius, borderBottomRightRadius: 4, paddingHorizontal: 13, paddingVertical: 8, maxWidth: "70%" }}>
+                      <Text style={{ fontSize: 14, color: "#ffffff", fontFamily: "Inter_400Regular" }}>All good, you? 😄</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{opt.label}</Text>
-                  <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular" }}>{opt.desc}</Text>
-                </View>
-                {settings.bubbleStyle === opt.key && <Feather name="check-circle" size={20} color={primary} />}
-              </Pressable>
-            ))}
+              );
+            })()}
+
+            {/* ── Shape ── */}
+            <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: txtMut, letterSpacing: 1, marginBottom: 10, textTransform: "uppercase" }}>Shape</Text>
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+              {([
+                { key: "rounded", label: "Rounded", radius: 18 },
+                { key: "sharp", label: "Sharp", radius: 5 },
+                { key: "balloon", label: "Balloon", radius: 28 },
+              ] as const).map(opt => {
+                const active = settings.bubbleStyle === opt.key;
+                const previewColor = settings.bubbleColor || primary;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => saveSetting("bubbleStyle", opt.key)}
+                    style={{ flex: 1, alignItems: "center", gap: 8, padding: 12, borderRadius: 14, borderWidth: 1.5, backgroundColor: active ? `${primary}18` : theme.surfaceElevated, borderColor: active ? primary : border }}
+                  >
+                    <View style={{ width: 54, height: 30, borderRadius: opt.radius, borderBottomRightRadius: 4, backgroundColor: previewColor, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" }}>Msg</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: active ? "Inter_700Bold" : "Inter_500Medium", color: active ? primary : txtSec }}>{opt.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* ── Colour ── */}
+            <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: txtMut, letterSpacing: 1, marginBottom: 10, textTransform: "uppercase" }}>Bubble Colour</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              {BUBBLE_COLORS.map(c => {
+                const active = settings.bubbleColor === c.key;
+                const swatch = c.key || primary;
+                return (
+                  <Pressable
+                    key={c.key}
+                    onPress={() => saveSetting("bubbleColor", c.key)}
+                    style={{ alignItems: "center", gap: 5 }}
+                  >
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: swatch,
+                      borderWidth: active ? 3 : 1.5,
+                      borderColor: active ? "#fff" : `${swatch}66`,
+                      alignItems: "center", justifyContent: "center",
+                      shadowColor: swatch, shadowOpacity: active ? 0.5 : 0, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: active ? 4 : 0,
+                    }}>
+                      {active && <Feather name="check" size={16} color="#fff" />}
+                    </View>
+                    <Text style={{ fontSize: 9, fontFamily: active ? "Inter_700Bold" : "Inter_400Regular", color: active ? primary : txtMut }}>{c.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </Pressable>
       </Modal>

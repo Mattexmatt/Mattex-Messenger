@@ -44,6 +44,7 @@ interface Message {
 interface AppSettings {
   fontSize: "small" | "medium" | "large";
   bubbleStyle: "rounded" | "sharp" | "balloon";
+  bubbleColor: string;
   readReceipts: boolean;
   enterToSend: boolean;
   vibrationEnabled: boolean;
@@ -478,7 +479,7 @@ export default function ChatScreen() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>({
-    fontSize: "medium", bubbleStyle: "rounded", readReceipts: true, enterToSend: false, vibrationEnabled: true,
+    fontSize: "medium", bubbleStyle: "rounded", bubbleColor: "", readReceipts: true, enterToSend: false, vibrationEnabled: true,
   });
 
   const inputRef = useRef<TextInput>(null);
@@ -495,6 +496,7 @@ export default function ChatScreen() {
         setAppSettings({
           fontSize: s.fontSize ?? "medium",
           bubbleStyle: s.bubbleStyle ?? "rounded",
+          bubbleColor: s.bubbleColor ?? "",
           readReceipts: s.readReceipts ?? true,
           enterToSend: s.enterToSend ?? false,
           vibrationEnabled: s.vibrationEnabled ?? true,
@@ -980,7 +982,7 @@ export default function ChatScreen() {
               delayLongPress={320}
             >
               <View style={{
-                backgroundColor: isDeletedForAll ? "transparent" : (isOwn ? theme.bubbleOwn : theme.bubble),
+                backgroundColor: isDeletedForAll ? "transparent" : (isOwn ? (appSettings.bubbleColor || theme.bubbleOwn) : theme.bubble),
                 borderTopLeftRadius: isOwn ? ownTopLeft : othTopLeft,
                 borderTopRightRadius: isOwn ? ownTopRight : othTopRight,
                 borderBottomLeftRadius: isOwn ? ownBotLeft : othBotLeft,
