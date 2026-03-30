@@ -303,9 +303,13 @@ export default function SettingsScreen() {
             <Feather name="chevron-right" size={16} color={danger} />
           </Pressable>
         )}
-        {/* Profile card */}
+
+        {/* ── Profile card ── */}
         <View style={{ marginTop: 20, marginHorizontal: 16 }}>
-          <Pressable style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: surf, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: border, opacity: pressed ? 0.8 : 1 })} onPress={() => router.push("/my-profile")}>
+          <Pressable
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: surf, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: border, opacity: pressed ? 0.8 : 1 })}
+            onPress={() => router.push("/my-profile")}
+          >
             {user?.avatarUrl ? (
               <Image source={{ uri: user.avatarUrl }} style={{ width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: primary }} />
             ) : (
@@ -318,17 +322,40 @@ export default function SettingsScreen() {
                 <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: txt }}>{user?.displayName}</Text>
                 <UserBadge isOwner={user?.isOwner ?? false} role={user?.role} size="sm" />
               </View>
-              <Text style={{ fontSize: 14, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 2 }}>@{user?.username}</Text>
+              <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 1 }}>@{user?.username}</Text>
+              <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>Tap to edit profile</Text>
             </View>
             <Feather name="chevron-right" size={18} color={txtMut} />
           </Pressable>
         </View>
 
-        <Section title="Notifications">
+        {/* ── ACCOUNT ── */}
+        <Section title="Account">
+          <Row
+            icon="mail"
+            iconColor={primary}
+            label="Email Address"
+            sublabel={(user as any)?.email ? ((user as any)?.emailVerified ? "Verified ✓" : "Tap to verify") : "Not set — add for recovery"}
+            right={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {(user as any)?.email ? (
+                  <Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 13 }} numberOfLines={1}>{(user as any).email}</Text>
+                ) : null}
+                <Feather name="chevron-right" size={17} color={txtMut} />
+              </View>
+            }
+            onPress={() => router.push("/my-profile")}
+          />
+          <Row icon="user" iconColor={accent} label="Username" sublabel={`@${user?.username}`} sep={false} />
+        </Section>
+
+        {/* ── NOTIFICATIONS & SOUNDS ── */}
+        <Section title="Notifications & Sounds">
           <ToggleRow icon="bell" label="Message Notifications" sublabel="Get notified when someone messages you" value={settings.notificationsEnabled} onChange={(v) => saveSetting("notificationsEnabled", v)} />
-          <ToggleRow icon="eye" label="Show Preview" sublabel="Show message content in notifications" value={settings.showPreview} onChange={(v) => saveSetting("showPreview", v)} />
+          <ToggleRow icon="eye" iconColor={accent} label="Show Preview" sublabel="Show message content in notifications" value={settings.showPreview} onChange={(v) => saveSetting("showPreview", v)} />
           <ToggleRow
-            icon="volume-2" label="Sounds" sublabel={settings.soundEnabled ? `Playing: ${currentSound.label}` : "Muted"}
+            icon="volume-2" iconColor={theme.success} label="Sounds"
+            sublabel={settings.soundEnabled ? `Playing: ${currentSound.label}` : "Muted"}
             value={settings.soundEnabled} onChange={(v) => saveSetting("soundEnabled", v)}
           />
           <Row icon="music" iconColor={accent} label="Notification Sound"
@@ -338,19 +365,24 @@ export default function SettingsScreen() {
           <ToggleRow icon="smartphone" iconColor={accent} label="Vibration" sublabel="Haptic feedback on messages" value={settings.vibrationEnabled} onChange={(v) => saveSetting("vibrationEnabled", v)} sep={false} />
         </Section>
 
-        <Section title="Privacy">
+        {/* ── PRIVACY & SECURITY ── */}
+        <Section title="Privacy & Security">
           <ToggleRow icon="check-circle" label="Read Receipts" sublabel="Show when you've read messages" value={settings.readReceipts} onChange={(v) => saveSetting("readReceipts", v)} />
           <ToggleRow icon="activity" iconColor={accent} label="Show Online Status" sublabel="Let contacts see when you're active" value={settings.onlineStatus} onChange={(v) => saveSetting("onlineStatus", v)} />
           <Row icon="clock" iconColor={theme.success} label="Last Seen"
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{settings.lastSeen === "everyone" ? "Everyone" : "Nobody"}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowLastSeen(true)} />
+            onPress={() => setShowLastSeen(true)}
+          />
           <Row icon="user-x" iconColor={danger} label="Blocked Contacts"
+            sublabel="People you have blocked"
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{(blockedUsers?.length ?? 0) > 0 && <View style={{ backgroundColor: danger, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" }}>{blockedUsers!.length}</Text></View>}<Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowBlocked(true)} />
+            onPress={() => setShowBlocked(true)}
+          />
           <Row
-            icon="smartphone"
+            icon="shield"
             iconColor={accent}
             label="Logged-in Devices"
+            sublabel="Manage active sessions"
             right={
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 {(loginAlerts?.length ?? 0) > 0 && !loginAlertDismissed && (
@@ -366,17 +398,23 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── CHATS ── */}
         <Section title="Chats">
           <ToggleRow icon="corner-down-right" label="Enter Key to Send" sublabel="Press Enter to send messages" value={settings.enterToSend} onChange={(v) => saveSetting("enterToSend", v)} />
           <ToggleRow icon="download" iconColor={accent} label="Auto-Save Media" sublabel="Automatically save photos & videos" value={settings.autoSaveMedia} onChange={(v) => saveSetting("autoSaveMedia", v)} />
           <Row icon="type" iconColor={theme.success} label="Font Size"
+            sublabel="Message text size"
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14, textTransform: "capitalize" }}>{settings.fontSize}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowFontSize(true)} />
+            onPress={() => setShowFontSize(true)}
+          />
           <Row icon="message-square" iconColor={theme.success} label="Bubble Style"
+            sublabel="Shape of message bubbles"
             right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14, textTransform: "capitalize" }}>{settings.bubbleStyle}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
-            onPress={() => setShowBubbleStyle(true)} sep={false} />
+            onPress={() => setShowBubbleStyle(true)} sep={false}
+          />
         </Section>
 
+        {/* ── APPEARANCE ── */}
         <Section title="Appearance">
           {(() => {
             const modeLabel = displayMode === "system" ? "System default" : displayMode === "light" ? "Light" : "Dark";
@@ -384,70 +422,86 @@ export default function SettingsScreen() {
             const modeColor = displayMode === "light" ? "#F59E0B" : displayMode === "dark" ? "#6366F1" : primary;
             return (
               <Row icon={modeIcon} iconColor={modeColor} label="Display Mode"
+                sublabel="Light, dark, or follow system"
                 right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{modeLabel}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
                 onPress={() => setShowDisplayMode(true)} sep={displayMode !== "light"} />
             );
           })()}
           {displayMode !== "light" && (
             <Row icon="droplet" iconColor={accent} label="Dark Theme"
+              sublabel="Choose your color theme"
               right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ fontSize: 16 }}>{THEME_OPTIONS.find(t => t.key === themeName)?.emoji ?? "💀"}</Text><Text style={{ color: txtSec, fontFamily: "Inter_400Regular", fontSize: 14 }}>{THEMES[themeName]?.name ?? "Midnight Hacker"}</Text><Feather name="chevron-right" size={17} color={txtMut} /></View>}
               onPress={() => setShowTheme(true)} sep={false} />
           )}
         </Section>
 
+        {/* ── STORAGE & DATA ── */}
+        <Section title="Storage & Data">
+          <Row icon="hard-drive" iconColor={accent} label="Media Cache" sublabel="Tap to clear stored media files" onPress={() => Alert.alert("Clear Cache", "Remove all cached media?", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => Alert.alert("Done", "Cache cleared.") }])} sep={false} />
+        </Section>
+
+        {/* ── HELP & SUPPORT ── */}
+        <Section title="Help & Support">
+          <Row icon="info" iconColor={theme.success} label="About M Chat" sublabel="Version, credits & legal" onPress={() => setShowAbout(true)} />
+          <Row icon="life-buoy" iconColor={accent} label="Help Center" sublabel="support@allanmatttech.com" onPress={() => Alert.alert("Help Center", "Contact us at support@allanmatttech.com")} sep={false} />
+        </Section>
+
+        {/* ── ADMIN (owner only) ── */}
         {user?.isOwner && (
-          <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
-            <Pressable onPress={() => router.push("/admin-dashboard" as any)}>
-              <LinearGradient
-                colors={["#1a0a00", "#3d1f00", "#1a0a00"]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={{ borderRadius: 20, borderWidth: 1.5, borderColor: "#FFD70044", overflow: "hidden" }}
-              >
-                <View style={{ padding: 18, flexDirection: "row", alignItems: "center", gap: 16 }}>
-                  <LinearGradient colors={["#FFD700", "#FFA500"]} style={{ width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ fontSize: 26 }}>👑</Text>
+          <View style={{ marginTop: 24 }}>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFD700", letterSpacing: 1, marginBottom: 8, marginLeft: 20, textTransform: "uppercase" }}>Admin</Text>
+            <View style={{ marginHorizontal: 16, borderRadius: 16, overflow: "hidden", borderWidth: 1.5, borderColor: "#FFD70033" }}>
+              <Pressable onPress={() => router.push("/admin-dashboard" as any)}>
+                <LinearGradient
+                  colors={["#1a0a00", "#2a1200", "#1a0a00"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 14, borderBottomWidth: 1, borderBottomColor: "#FFD70022" }}
+                >
+                  <LinearGradient colors={["#FFD700", "#FFA500"]} style={{ width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 22 }}>👑</Text>
                   </LinearGradient>
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                      <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFD700" }}>Admin Dashboard</Text>
-                      <View style={{ backgroundColor: "#FFD70022", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#FFD70044" }}>
-                        <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFD700", letterSpacing: 0.5 }}>FOUNDER</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFD700" }}>Admin Dashboard</Text>
+                      <View style={{ backgroundColor: "#FFD70022", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1.5, borderWidth: 1, borderColor: "#FFD70044" }}>
+                        <Text style={{ fontSize: 8, fontFamily: "Inter_700Bold", color: "#FFD700", letterSpacing: 0.5 }}>FOUNDER</Text>
                       </View>
                     </View>
-                    <Text style={{ fontSize: 12, color: "rgba(255,215,0,0.55)", fontFamily: "Inter_400Regular" }}>Stats · Users · Broadcasts · Moderation</Text>
+                    <Text style={{ fontSize: 12, color: "rgba(255,215,0,0.5)", fontFamily: "Inter_400Regular" }}>Stats · Users · Broadcasts · Moderation</Text>
                   </View>
-                  <Feather name="chevron-right" size={20} color="#FFD700" />
+                  <Feather name="chevron-right" size={18} color="#FFD700" />
+                </LinearGradient>
+              </Pressable>
+              <Pressable
+                onPress={() => setShowVipManage(true)}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: pressed ? "#A855F710" : "transparent" })}
+              >
+                <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: "#A855F718", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="star" size={20} color="#A855F7" />
                 </View>
-              </LinearGradient>
-            </Pressable>
-
-            <Pressable onPress={() => setShowVipManage(true)} style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#A855F710", borderRadius: 14, borderWidth: 1.5, borderColor: "#A855F733", paddingHorizontal: 16, paddingVertical: 13 }}>
-              <Feather name="star" size={17} color="#A855F7" />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#A855F7" }}>VIP Management</Text>
-                <Text style={{ fontSize: 12, color: "rgba(168,85,247,0.6)", fontFamily: "Inter_400Regular" }}>Promote or demote users</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color="#A855F7" />
-            </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#A855F7" }}>VIP Management</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(168,85,247,0.55)", fontFamily: "Inter_400Regular" }}>Promote or demote users</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color="#A855F7" />
+              </Pressable>
+            </View>
           </View>
         )}
 
-        <Section title="Storage & Data">
-          <Row icon="trash-2" iconColor={danger} label="Clear Media Cache" onPress={() => Alert.alert("Clear Cache", "Remove all cached media?", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => Alert.alert("Done", "Cache cleared.") }])} sep={false} />
-        </Section>
-
-        <Section title="Help">
-          <Row icon="info" iconColor={theme.success} label="About M Chat" onPress={() => setShowAbout(true)} />
-          <Row icon="life-buoy" iconColor={accent} label="Help Center" onPress={() => Alert.alert("Help Center", "Contact us at support@allanmatttech.com")} sep={false} />
-        </Section>
-
-        <View style={{ marginTop: 24, marginHorizontal: 16 }}>
-          <Pressable style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: `${danger}18`, borderRadius: 14, paddingVertical: 16, borderWidth: 1, borderColor: `${danger}33` }} onPress={handleLogout}>
+        {/* ── DANGER ZONE ── */}
+        <View style={{ marginTop: 32, marginHorizontal: 16 }}>
+          <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: danger, letterSpacing: 1, marginBottom: 8, marginLeft: 4, textTransform: "uppercase" }}>Account Actions</Text>
+          <Pressable
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: pressed ? `${danger}28` : `${danger}18`, borderRadius: 14, paddingVertical: 16, borderWidth: 1, borderColor: `${danger}44` })}
+            onPress={handleLogout}
+          >
             <Feather name="log-out" size={18} color={danger} />
             <Text style={{ color: danger, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>Sign Out</Text>
           </Pressable>
         </View>
-        <Text style={{ textAlign: "center", color: txtMut, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 20, marginBottom: 10 }}>M Chat v1.0.0 · Allan Matt Tech</Text>
+
+        <Text style={{ textAlign: "center", color: txtMut, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 24, marginBottom: 10 }}>M Chat v1.0.0 · Allan Matt Tech</Text>
       </ScrollView>
 
       {/* Sound picker modal */}
