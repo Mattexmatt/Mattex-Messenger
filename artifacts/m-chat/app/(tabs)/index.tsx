@@ -693,6 +693,11 @@ export default function ChatsScreen() {
     });
   }, [conversations, filter, pinnedIds]);
 
+  const pinnedCount = useMemo(
+    () => sortedConversations.filter(c => pinnedIds.includes(c.id)).length,
+    [sortedConversations, pinnedIds]
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={{
@@ -854,10 +859,6 @@ export default function ChatsScreen() {
           refreshing={false}
           ListHeaderComponent={
             <View>
-              <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: theme.textSecondary, letterSpacing: 0.5 }}>MESSAGES</Text>
-              </View>
-
               {/* Mattex AI pinned entry */}
               <Pressable
                 style={({ pressed }) => ({
@@ -895,22 +896,41 @@ export default function ChatsScreen() {
               <View style={{ height: 1, backgroundColor: theme.border, marginLeft: 90 }} />
             </View>
           }
-          renderItem={({ item }) => (
-            <ConvItem
-              item={item}
-              user={user}
-              theme={theme}
-              isPinned={pinnedIds.includes(item.id)}
-              isMuted={mutedIds.includes(item.id)}
-              onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "", isOwner: String(item.otherUser.isOwner), role: item.otherUser.role ?? "user" } })}
-              onLongPress={() => openContextMenu(item)}
-              onAvatarPress={() => {
-                if (item.otherUser.avatarUrl) {
-                  setDpPreview({ imageSource: { uri: item.otherUser.avatarUrl }, name: item.otherUser.displayName });
-                }
-              }}
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const isPinned = pinnedIds.includes(item.id);
+            const hasPinned = pinnedCount > 0;
+            const showPinnedHeader = hasPinned && index === 0;
+            const showMessagesHeader = hasPinned ? index === pinnedCount : index === 0;
+            return (
+              <>
+                {showPinnedHeader && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 6 }}>
+                    <Feather name="bookmark" size={12} color={theme.primary} />
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: theme.primary, letterSpacing: 0.8 }}>PINNED</Text>
+                  </View>
+                )}
+                {showMessagesHeader && (
+                  <View style={{ paddingHorizontal: 20, paddingTop: hasPinned ? 12 : 16, paddingBottom: 6 }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: theme.textMuted, letterSpacing: 0.8 }}>MESSAGES</Text>
+                  </View>
+                )}
+                <ConvItem
+                  item={item}
+                  user={user}
+                  theme={theme}
+                  isPinned={isPinned}
+                  isMuted={mutedIds.includes(item.id)}
+                  onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id, name: item.otherUser.displayName, username: item.otherUser.username, userId: item.otherUser.id, avatarUrl: item.otherUser.avatarUrl ?? "", isOwner: String(item.otherUser.isOwner), role: item.otherUser.role ?? "user" } })}
+                  onLongPress={() => openContextMenu(item)}
+                  onAvatarPress={() => {
+                    if (item.otherUser.avatarUrl) {
+                      setDpPreview({ imageSource: { uri: item.otherUser.avatarUrl }, name: item.otherUser.displayName });
+                    }
+                  }}
+                />
+              </>
+            );
+          }}
           ItemSeparatorComponent={() => (
             <View style={{ height: 1, backgroundColor: theme.border, marginLeft: 90 }} />
           )}
