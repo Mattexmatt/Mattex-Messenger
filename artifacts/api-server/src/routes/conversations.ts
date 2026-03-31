@@ -122,6 +122,27 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
+// ─── DELETE /conversations/:id — delete a conversation and all its messages ──
+router.delete("/:conversationId", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const convId = Number(req.params.conversationId);
+
+  const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, convId));
+  if (!conv) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
+  if (conv.user1Id !== userId && conv.user2Id !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  await db.delete(messagesTable).where(eq(messagesTable.conversationId, convId));
+  await db.delete(conversationsTable).where(eq(conversationsTable.id, convId));
+
+  res.json({ ok: true });
+});
+
 // ─── GET /starred — all starred messages for current user ────────────────────
 router.get("/starred", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
