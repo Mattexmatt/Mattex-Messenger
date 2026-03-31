@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { setToken, apiRequest } from "@/utils/api";
+import { setupNotifications } from "@/utils/notificationSetup";
 
 export interface UserData {
   id: number;
@@ -40,6 +41,7 @@ const AuthContext = createContext<AuthContextType>({
   updateUser: () => {},
 });
 
+// Show notifications even when the app is foregrounded
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -77,6 +79,44 @@ async function sendPushTokenToServer(pushToken: string) {
   } catch {}
 }
 
+// Handle Quick Reply, Mark as Read, and notification-tap navigation
+function handleNotificationResponse(response: Notifications.NotificationResponse) {
+  const { actionIdentifier, notification, userText } = response as Notifications.NotificationResponse & { userText?: string };
+  const data = notification.request.content.data as Record<string, string> | undefined;
+  if (!data) return;
+
+  const { type, conversationId, memeId } = data;
+
+  if (actionIdentifier === "REPLY" && conversationId && userText?.trim()) {
+    apiRequest(`/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content: userText.trim(), type: "text" }),
+    }).catch(() => {});
+    return;
+  }
+
+  if (actionIdentifier === "MARK_READ" && conversationId) {
+    apiRequest(`/conversations/${conversationId}/read`, { method: "POST" }).catch(() => {});
+    return;
+  }
+
+  if (actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER || actionIdentifier === "VIEW") {
+    if (type === "message" && conversationId) {
+      setTimeout(() => {
+        try { router.push({ pathname: "/chat/[id]", params: { id: conversationId } }); } catch {}
+      }, 300);
+    } else if (type === "meme" || memeId) {
+      setTimeout(() => {
+        try { router.push("/(tabs)/memes"); } catch {}
+      }, 300);
+    } else if (type === "new_login") {
+      setTimeout(() => {
+        try { router.push("/settings"); } catch {}
+      }, 300);
+    }
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
@@ -86,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionWsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tokenRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
+  const notifListenersRef = useRef<{ remove: () => void }[]>([]);
 
   const startHeartbeat = () => {
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
@@ -122,15 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const wsUrl = `wss://${domain}/ws/sessions?token=${encodeURIComponent(t)}`;
 
     let ws: WebSocket;
-    try {
-      ws = new WebSocket(wsUrl);
-    } catch {
-      return;
-    }
+    try { ws = new WebSocket(wsUrl); } catch { return; }
 
     sessionWsRef.current = ws;
-
-    ws.onopen = () => {};
 
     ws.onmessage = (event) => {
       try {
@@ -138,22 +173,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (msg.type === "force_logout") {
           if (!mountedRef.current) return;
           doLogout();
-          setTimeout(() => {
-            try { router.replace("/(auth)/login"); } catch {}
-          }, 100);
+          setTimeout(() => { try { router.replace("/(auth)/login"); } catch {} }, 100);
         }
       } catch {}
     };
 
     ws.onclose = (event) => {
       if (sessionWsRef.current === ws) sessionWsRef.current = null;
-      if (!mountedRef.current) return;
-      if (event.code === 1000) return;
-      const t = tokenRef.current;
-      if (t) {
+      if (!mountedRef.current || event.code === 1000) return;
+      const cur = tokenRef.current;
+      if (cur) {
         sessionWsReconnectRef.current = setTimeout(() => {
-          const cur = tokenRef.current;
-          if (cur && mountedRef.current) connectSessionWs(cur);
+          const latest = tokenRef.current;
+          if (latest && mountedRef.current) connectSessionWs(latest);
         }, 5000);
       }
     };
@@ -164,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const doLogout = async () => {
     stopHeartbeat();
     disconnectSessionWs();
+    removeNotifListeners();
     tokenRef.current = null;
     await AsyncStorage.removeItem("mchat_token");
     await AsyncStorage.removeItem("mchat_user");
@@ -172,8 +205,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const removeNotifListeners = () => {
+    for (const l of notifListenersRef.current) { try { l.remove(); } catch {} }
+    notifListenersRef.current = [];
+  };
+
+  const attachNotifListeners = () => {
+    removeNotifListeners();
+    // Response listener: fires when user taps or acts on a notification (foreground, background, killed)
+    const responseListener = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    notifListenersRef.current.push(responseListener);
+  };
+
+  const initPush = async (t: string) => {
+    const pt = await registerForPushNotifications();
+    if (pt) sendPushTokenToServer(pt);
+  };
+
   useEffect(() => {
     mountedRef.current = true;
+
+    // Set up notification channels + categories before requesting permission
+    setupNotifications().catch(() => {});
+
     (async () => {
       const savedToken = await AsyncStorage.getItem("mchat_token");
       const savedUser = await AsyncStorage.getItem("mchat_user");
@@ -185,9 +239,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(cached);
         setTimeout(startHeartbeat, 500);
         connectSessionWs(savedToken);
-        registerForPushNotifications().then((pt) => {
-          if (pt) sendPushTokenToServer(pt);
-        });
+        attachNotifListeners();
+        initPush(savedToken);
         try {
           const fresh = await apiRequest("/users/me");
           const merged: UserData = { ...cached, ...fresh };
@@ -202,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mountedRef.current = false;
       stopHeartbeat();
       disconnectSessionWs();
+      removeNotifListeners();
     };
   }, []);
 
@@ -214,9 +268,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
     startHeartbeat();
     connectSessionWs(t);
-    registerForPushNotifications().then((pt) => {
-      if (pt) sendPushTokenToServer(pt);
-    });
+    attachNotifListeners();
+    initPush(t);
   };
 
   const logout = async () => {

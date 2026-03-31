@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { memesTable, memeLikesTable, usersTable } from "@workspace/db/schema";
 import { eq, and, sql, desc, ne } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
+import { sendMemeNotification } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 
@@ -116,6 +117,9 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   } as any).returning();
 
   res.status(201).json(formatMeme({ ...meme, author: { ...me, role: (me as any).role, warnCount: (me as any).warnCount, isBanned: (me as any).isBanned }, likesCount: 0 }, false));
+
+  // Broadcast rich media notification to all other users — non-blocking
+  sendMemeNotification(me.username, me.displayName, caption ?? null, meme.id, imageUrl, req.userId!).catch(() => {});
 });
 
 router.post("/:memeId/like", requireAuth, async (req: AuthRequest, res) => {

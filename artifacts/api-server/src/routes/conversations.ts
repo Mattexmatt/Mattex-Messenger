@@ -6,6 +6,7 @@ import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import { detectSpam } from "../spamDetector";
 import { checkMessageVelocity, checkDuplicateContent, isBanned } from "../lib/sentinel";
 import { messageLimiter } from "../middlewares/rateLimiter";
+import { sendMessageNotification } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 
@@ -382,6 +383,18 @@ router.post("/:conversationId/messages", requireAuth, messageLimiter, async (req
       createdAt: sender.createdAt,
     },
   });
+
+  // Push notification to recipient — non-blocking, fire-and-forget
+  (async () => {
+    try {
+      const [conv] = await db.select().from(conversationsTable)
+        .where(eq(conversationsTable.id, conversationId));
+      if (!conv) return;
+      const recipientId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+      const preview = type === "text" ? content : type === "voice" ? "🎤 Voice message" : type === "image" ? "📷 Photo" : "📎 Attachment";
+      await sendMessageNotification(recipientId, sender.displayName, preview, conversationId);
+    } catch {}
+  })();
 });
 
 export default router;
