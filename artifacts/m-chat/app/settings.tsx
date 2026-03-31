@@ -124,18 +124,29 @@ export default function SettingsScreen() {
   interface SessionEntry {
     id: number;
     deviceName: string;
+    deviceModel: string | null;
     platform: string;
     ipAddress: string | null;
+    location: string | null;
     lastActiveAt: string;
     createdAt: string;
     isCurrent: boolean;
   }
+
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!showDevices) return;
+    const interval = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, [showDevices]);
 
   const { data: sessions, isLoading: loadingSessions, refetch: refetchSessions } = useQuery<SessionEntry[]>({
     queryKey: ["sessions", token],
     queryFn: () => apiRequest("/sessions"),
     enabled: !!token && showDevices,
     staleTime: 10_000,
+    refetchInterval: showDevices ? 15_000 : false,
   });
 
   const { data: loginAlerts } = useQuery<{ id: number; deviceName: string; platform: string; createdAt: string }[]>({
@@ -864,42 +875,82 @@ export default function SettingsScreen() {
                 <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
                   {(sessions ?? []).map((s, i) => {
                     const platformIcon = s.platform === "ios" ? "smartphone" : s.platform === "android" ? "smartphone" : s.platform === "macos" ? "monitor" : s.platform === "windows" ? "monitor" : "globe";
+                    const now = Date.now();
+                    const lastMs = new Date(s.lastActiveAt).getTime();
+                    const diffMs = now - lastMs;
                     const timeSince = (dt: string) => {
-                      const diff = Date.now() - new Date(dt).getTime();
-                      if (diff < 60000) return "just now";
-                      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-                      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-                      return `${Math.floor(diff / 86400000)}d ago`;
+                      const d = now - new Date(dt).getTime();
+                      if (d < 60000) return "just now";
+                      if (d < 3600000) return `${Math.floor(d / 60000)}m ago`;
+                      if (d < 86400000) return `${Math.floor(d / 3600000)}h ago`;
+                      return `${Math.floor(d / 86400000)}d ago`;
                     };
+
+                    let statusLabel = "";
+                    let statusColor = "";
+                    if (s.isCurrent) {
+                      statusLabel = "Active Now";
+                      statusColor = "#22C55E";
+                    } else if (diffMs < 5 * 60 * 1000) {
+                      statusLabel = "Active Now";
+                      statusColor = "#22C55E";
+                    } else if (diffMs < 30 * 60 * 1000) {
+                      statusLabel = "Idle";
+                      statusColor = "#F59E0B";
+                    } else {
+                      statusLabel = `Last seen ${timeSince(s.lastActiveAt)}`;
+                      statusColor = txtMut;
+                    }
+
+                    const displayName = s.deviceModel ?? s.deviceName;
+                    const locationLine = [s.ipAddress, s.location].filter(Boolean).join(" · ");
+
                     return (
-                      <View key={s.id} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderBottomWidth: i < (sessions!.length - 1) ? 1 : 0, borderBottomColor: border }}>
-                        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: s.isCurrent ? `${accent}22` : `${primary}14`, alignItems: "center", justifyContent: "center" }}>
-                          <Feather name={platformIcon as any} size={20} color={s.isCurrent ? accent : txtMut} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{s.deviceName}</Text>
-                            {s.isCurrent && (
-                              <View style={{ backgroundColor: `${accent}22`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                <Text style={{ color: accent, fontSize: 10, fontFamily: "Inter_700Bold" }}>THIS DEVICE</Text>
-                              </View>
-                            )}
+                      <View key={s.id} style={{ paddingVertical: 14, borderBottomWidth: i < (sessions!.length - 1) ? 1 : 0, borderBottomColor: border }}>
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                          <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: s.isCurrent ? `${accent}22` : `${primary}14`, alignItems: "center", justifyContent: "center", marginTop: 2 }}>
+                            <Feather name={platformIcon as any} size={20} color={s.isCurrent ? accent : txtMut} />
                           </View>
-                          <Text style={{ fontSize: 12, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 2 }}>
-                            {s.ipAddress ? `${s.ipAddress} · ` : ""}{timeSince(s.lastActiveAt)}
-                          </Text>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: txt }}>{displayName}</Text>
+                              {s.isCurrent && (
+                                <View style={{ backgroundColor: `${accent}22`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                  <Text style={{ color: accent, fontSize: 10, fontFamily: "Inter_700Bold" }}>THIS DEVICE</Text>
+                                </View>
+                              )}
+                            </View>
+
+                            {/* Status badge */}
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
+                              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor }} />
+                              <Text style={{ fontSize: 12, color: statusColor, fontFamily: "Inter_600SemiBold" }}>{statusLabel}</Text>
+                            </View>
+
+                            {/* Location / IP line */}
+                            {locationLine ? (
+                              <Text style={{ fontSize: 11, color: txtMut, fontFamily: "Inter_400Regular", marginTop: 3 }} numberOfLines={1}>
+                                {locationLine}
+                              </Text>
+                            ) : null}
+
+                            <Text style={{ fontSize: 11, color: `${txtMut}88`, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                              Signed in {timeSince(s.createdAt)}
+                            </Text>
+                          </View>
+
+                          {!s.isCurrent && (
+                            <Pressable
+                              onPress={() => Alert.alert("Sign Out Device", `Sign out of ${displayName}?`, [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Sign Out", style: "destructive", onPress: () => revokeSession(s.id) },
+                              ])}
+                              style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: pressed ? `${danger}30` : `${danger}14`, borderWidth: 1, borderColor: `${danger}33`, marginTop: 2 })}
+                            >
+                              <Text style={{ color: danger, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Sign Out</Text>
+                            </Pressable>
+                          )}
                         </View>
-                        {!s.isCurrent && (
-                          <Pressable
-                            onPress={() => Alert.alert("Sign Out Device", `Sign out of ${s.deviceName}?`, [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Sign Out", style: "destructive", onPress: () => revokeSession(s.id) },
-                            ])}
-                            style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: pressed ? `${danger}30` : `${danger}14`, borderWidth: 1, borderColor: `${danger}33` })}
-                          >
-                            <Text style={{ color: danger, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Sign Out</Text>
-                          </Pressable>
-                        )}
                       </View>
                     );
                   })}

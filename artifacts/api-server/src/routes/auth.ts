@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { usersTable, userSessionsTable } from "@workspace/db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, ne } from "drizzle-orm";
 import { parseDevice } from "../utils/parseDevice";
 import {
   sendVerificationEmail,
@@ -27,21 +27,82 @@ function makeToken(len = 6) {
   return randomBytes(3).toString("hex").toUpperCase(); // e.g. "A3F7C2"
 }
 
+async function fetchGeoLocation(ip: string | null): Promise<string | null> {
+  if (!ip || ip === "127.0.0.1" || ip === "::1" || ip.startsWith("192.168") || ip.startsWith("10.") || ip.startsWith("172.")) {
+    return null;
+  }
+  try {
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=city,country,status`);
+    const data = await res.json() as { status?: string; city?: string; country?: string };
+    if (data.status !== "success") return null;
+    if (data.city && data.country) return `${data.city}, ${data.country}`;
+    if (data.country) return data.country;
+  } catch {}
+  return null;
+}
+
+async function sendExpoPush(tokens: string[], title: string, body: string, data?: Record<string, string>) {
+  try {
+    const messages = tokens.map(to => ({ to, title, body, data: data ?? {}, sound: "default" }));
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(messages),
+    });
+  } catch {}
+}
+
 async function recordSession(
   userId: number,
   jti: string,
-  req: { headers: Record<string, string | string[] | undefined>; ip?: string }
+  req: { headers: Record<string, string | string[] | undefined>; ip?: string },
+  pushToken?: string | null
 ) {
   const ua = (req.headers["user-agent"] as string) ?? "";
   const { deviceName, platform } = parseDevice(ua);
+  const deviceModel = (req.headers["x-device-model"] as string | undefined) ?? null;
+  const resolvedPushToken = pushToken ?? (req.headers["x-push-token"] as string | undefined) ?? null;
   const ip =
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
     req.ip ??
     null;
+
+  const displayName = deviceModel ?? deviceName;
+
   await db
     .insert(userSessionsTable)
-    .values({ userId, jti, deviceName, platform, ipAddress: ip })
+    .values({ userId, jti, deviceName: displayName, deviceModel, platform, ipAddress: ip, expoPushToken: resolvedPushToken })
     .onConflictDoNothing();
+
+  fetchGeoLocation(ip).then(async (location) => {
+    if (location) {
+      await db.update(userSessionsTable).set({ location }).where(eq(userSessionsTable.jti, jti)).catch(() => {});
+    }
+  });
+}
+
+async function alertOtherSessionsNewDevice(userId: number, newJti: string, deviceName: string) {
+  const otherSessions = await db
+    .select({ expoPushToken: userSessionsTable.expoPushToken })
+    .from(userSessionsTable)
+    .where(and(
+      eq(userSessionsTable.userId, userId),
+      eq(userSessionsTable.isActive, true),
+      ne(userSessionsTable.jti, newJti)
+    ));
+
+  const tokens = otherSessions
+    .map(s => s.expoPushToken)
+    .filter((t): t is string => !!t);
+
+  if (tokens.length > 0) {
+    sendExpoPush(
+      tokens,
+      "🔐 New Login Detected",
+      `Your account was just signed into from: ${deviceName}. If this wasn't you, open M Chat to revoke it.`,
+      { type: "new_login", deviceName }
+    );
+  }
 }
 
 // POST /auth/register
@@ -175,16 +236,35 @@ router.post("/login", async (req, res) => {
   const jti = makeJti();
   const resolvedDeviceId = deviceId ?? (req.headers["x-device-id"] as string | undefined);
   const token = jwt.sign({ userId: user.id, jti, ...(resolvedDeviceId ? { deviceId: resolvedDeviceId } : {}) }, JWT_SECRET, { expiresIn: "30d" });
+
+  const ua = (req.headers["user-agent"] as string) ?? "";
+  const deviceModelHeader = (req.headers["x-device-model"] as string | undefined) ?? null;
+  const { deviceName } = parseDevice(ua);
+  const displayName = deviceModelHeader ?? deviceName;
+
+  // Check if this is a new device fingerprint (no prior session for this deviceId)
+  const isNewDevice = resolvedDeviceId
+    ? (await db.select({ id: userSessionsTable.id }).from(userSessionsTable).where(
+        and(
+          eq(userSessionsTable.userId, user.id),
+          eq(userSessionsTable.isActive, true),
+          ne(userSessionsTable.jti, jti)
+        )
+      )).length > 0
+    : false;
+
   await recordSession(user.id, jti, req as any);
 
-  // Send login alert if email on file (non-blocking)
+  if (isNewDevice) {
+    alertOtherSessionsNewDevice(user.id, jti, displayName).catch(() => {});
+  }
+
+  // Send login alert email if email on file (non-blocking)
   if ((user as any).email && (user as any).emailVerified) {
-    const ua = (req.headers["user-agent"] as string) ?? "";
-    const { deviceName } = parseDevice(ua);
     sendLoginAlertEmail({
       to: (user as any).email,
       displayName: user.displayName,
-      device: deviceName,
+      device: displayName,
     }).catch(() => {});
   }
 

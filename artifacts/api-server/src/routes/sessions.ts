@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { userSessionsTable } from "@workspace/db/schema";
 import { eq, and, desc, ne } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
+import { pushForceLogout, broadcastSessionsChanged } from "../ws";
 
 const router: IRouter = Router();
 
@@ -20,8 +21,10 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     sessions.map((s) => ({
       id: s.id,
       deviceName: s.deviceName,
+      deviceModel: s.deviceModel,
       platform: s.platform,
       ipAddress: s.ipAddress,
+      location: s.location,
       lastActiveAt: s.lastActiveAt,
       createdAt: s.createdAt,
       isCurrent: s.jti === currentJti,
@@ -52,9 +55,32 @@ router.get("/alerts", requireAuth, async (req: AuthRequest, res) => {
       deviceName: s.deviceName,
       platform: s.platform,
       ipAddress: s.ipAddress,
+      location: s.location,
       createdAt: s.createdAt,
     }))
   );
+});
+
+// Update push token for current session
+router.put("/push-token", requireAuth, async (req: AuthRequest, res) => {
+  const jti = req.jti;
+  if (!jti) {
+    res.status(400).json({ error: "No session JTI" });
+    return;
+  }
+
+  const { expoPushToken } = req.body as { expoPushToken?: string };
+  if (!expoPushToken) {
+    res.status(400).json({ error: "expoPushToken required" });
+    return;
+  }
+
+  await db
+    .update(userSessionsTable)
+    .set({ expoPushToken })
+    .where(eq(userSessionsTable.jti, jti));
+
+  res.json({ ok: true });
 });
 
 router.delete("/:id", requireAuth, async (req: AuthRequest, res) => {
@@ -81,12 +107,29 @@ router.delete("/:id", requireAuth, async (req: AuthRequest, res) => {
     .set({ isActive: false })
     .where(eq(userSessionsTable.id, sessionId));
 
+  // Real-time kill-switch: immediately terminate that session's WS connection
+  pushForceLogout(session.jti);
+
+  // Notify all sessions of the change for live list refresh
+  broadcastSessionsChanged(userId);
+
   res.json({ ok: true });
 });
 
 router.delete("/", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const currentJti = req.jti;
+
+  const toRevoke = await db
+    .select({ jti: userSessionsTable.jti })
+    .from(userSessionsTable)
+    .where(
+      and(
+        eq(userSessionsTable.userId, userId),
+        eq(userSessionsTable.isActive, true),
+        currentJti ? ne(userSessionsTable.jti, currentJti) : eq(userSessionsTable.isActive, true)
+      )
+    );
 
   await db
     .update(userSessionsTable)
@@ -98,6 +141,12 @@ router.delete("/", requireAuth, async (req: AuthRequest, res) => {
         currentJti ? ne(userSessionsTable.jti, currentJti) : eq(userSessionsTable.isActive, true)
       )
     );
+
+  for (const { jti } of toRevoke) {
+    pushForceLogout(jti);
+  }
+
+  broadcastSessionsChanged(userId);
 
   res.json({ ok: true });
 });

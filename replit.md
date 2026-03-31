@@ -101,6 +101,13 @@ Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` 
 - Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
 - Email service: `src/emailService.ts` — Resend integration via Replit connector (no hardcoded API key). Used for email verification, password reset, and login security alerts.
 - Auth routes include: `/auth/register` (optional email), `/auth/login` (username OR email), `/auth/forgot-password`, `/auth/reset-password`, `/auth/verify-email`, `/auth/add-email`, `/auth/resend-verification`
+- Sessions routes: `GET/DELETE /sessions`, `DELETE /sessions/:id`, `PUT /sessions/push-token`
+- WebSocket `/ws/sessions` — per-jti connections for real-time session force-logout and live list updates
+- WebSocket `/ws/calls` — signaling for video calls
+- Auto-timeout job: expires sessions idle >30min every 5 minutes
+- `lastActiveAt` is debounced-updated on every authenticated request (max once per 2min per jti)
+- IP geolocation resolved async after login via ip-api.com free API
+- Expo push notifications sent to other sessions on new device login
 - Depends on: `@workspace/db`, `@workspace/api-zod`
 - `pnpm --filter @workspace/api-server run dev` — run the dev server
 - `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)

@@ -2,11 +2,28 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../routes/auth";
 import { isBanned } from "../lib/sentinel";
+import { db } from "@workspace/db";
+import { userSessionsTable } from "@workspace/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export interface AuthRequest extends Request {
   userId?: number;
   jti?: string;
   deviceId?: string;
+}
+
+// Debounce lastActiveAt updates — max once per 2 minutes per jti
+const lastActiveCache = new Map<string, number>();
+
+function touchLastActive(jti: string) {
+  const now = Date.now();
+  const last = lastActiveCache.get(jti) ?? 0;
+  if (now - last < 2 * 60 * 1000) return;
+  lastActiveCache.set(jti, now);
+  db.update(userSessionsTable)
+    .set({ lastActiveAt: new Date() })
+    .where(and(eq(userSessionsTable.jti, jti), eq(userSessionsTable.isActive, true)))
+    .catch(() => {});
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
@@ -37,6 +54,8 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
         return;
       }
     }
+
+    if (payload.jti) touchLastActive(payload.jti);
 
     next();
   } catch {

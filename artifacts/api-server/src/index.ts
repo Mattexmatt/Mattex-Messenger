@@ -1,8 +1,11 @@
 import http from "http";
 import app from "./app";
-import { setupWS } from "./ws";
+import { setupWS, pushForceLogout } from "./ws";
 import { logger } from "./lib/logger";
 import { deliverDueMessages } from "./routes/scheduled";
+import { db } from "@workspace/db";
+import { userSessionsTable } from "@workspace/db/schema";
+import { and, eq, lt } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -27,6 +30,34 @@ server.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
 });
 
-// Run the time-capsule delivery worker every 30 seconds
+// ── Time-capsule delivery — every 30 seconds ──────────────────────────────────
 setInterval(deliverDueMessages, 30_000);
-deliverDueMessages(); // run once on startup too
+deliverDueMessages();
+
+// ── Session auto-timeout — expire sessions idle for 30+ minutes ───────────────
+async function expireIdleSessions() {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+  try {
+    const expired = await db
+      .select({ jti: userSessionsTable.jti })
+      .from(userSessionsTable)
+      .where(and(eq(userSessionsTable.isActive, true), lt(userSessionsTable.lastActiveAt, cutoff)));
+
+    for (const { jti } of expired) {
+      pushForceLogout(jti);
+    }
+
+    if (expired.length > 0) {
+      await db
+        .update(userSessionsTable)
+        .set({ isActive: false })
+        .where(and(eq(userSessionsTable.isActive, true), lt(userSessionsTable.lastActiveAt, cutoff)));
+      logger.info({ count: expired.length }, "Auto-expired idle sessions");
+    }
+  } catch (err) {
+    logger.error({ err }, "Session auto-timeout error");
+  }
+}
+
+setInterval(expireIdleSessions, 5 * 60 * 1000);
+expireIdleSessions();
