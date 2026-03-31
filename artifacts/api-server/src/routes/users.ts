@@ -19,6 +19,11 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     isOwner: user.isOwner,
     role: (user as any).role ?? "user",
     createdAt: user.createdAt,
+    birthdate: user.birthdate ?? null,
+    chatWallpaperType: user.chatWallpaperType ?? "none",
+    chatWallpaperValue: user.chatWallpaperValue ?? "",
+    chatWallpaperOpacity: user.chatWallpaperOpacity ?? 85,
+    chatWallpaperBlur: user.chatWallpaperBlur ?? 0,
   };
 }
 
@@ -32,7 +37,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
 });
 
 router.put("/me", requireAuth, async (req: AuthRequest, res) => {
-  const { displayName, avatarUrl, status, bio, hobbies } = req.body;
+  const { displayName, avatarUrl, status, bio, hobbies, birthdate, chatWallpaperType, chatWallpaperValue, chatWallpaperOpacity, chatWallpaperBlur } = req.body;
   const updates: Partial<typeof usersTable.$inferInsert> = {};
 
   if (displayName) updates.displayName = displayName;
@@ -43,6 +48,11 @@ router.put("/me", requireAuth, async (req: AuthRequest, res) => {
     updates.status = status;
     updates.statusUpdatedAt = new Date();
   }
+  if (birthdate !== undefined) updates.birthdate = birthdate || null;
+  if (chatWallpaperType !== undefined) updates.chatWallpaperType = chatWallpaperType;
+  if (chatWallpaperValue !== undefined) updates.chatWallpaperValue = chatWallpaperValue;
+  if (chatWallpaperOpacity !== undefined) updates.chatWallpaperOpacity = Number(chatWallpaperOpacity);
+  if (chatWallpaperBlur !== undefined) updates.chatWallpaperBlur = Number(chatWallpaperBlur);
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.userId!)).returning();
   res.json(formatUser(user));

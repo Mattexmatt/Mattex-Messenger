@@ -23,6 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import Svg, { Defs, Pattern, Rect, Path as SvgPath, Circle as SvgCircle } from "react-native-svg";
 import UserBadge from "@/components/UserBadge";
+import ChatWallpaper from "@/components/ChatWallpaper";
 
 interface Message {
   id: number;
@@ -537,29 +538,6 @@ function DocumentBubble({ content, isOwn, theme }: { content: string; isOwn: boo
   );
 }
 
-// ─── Chat wallpaper ────────────────────────────────────────────────────────────
-function ChatWallpaper({ isDark }: { isDark: boolean }) {
-  const bg = isDark ? "#0a131a" : "#dfe7ec";
-  const stroke = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)";
-  const dot = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
-  return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: bg }]}>
-      <Svg width="100%" height="100%">
-        <Defs>
-          <Pattern id="cwp" x="0" y="0" width="52" height="52" patternUnits="userSpaceOnUse">
-            <SvgPath d="M26 3L49 26L26 49L3 26Z" stroke={stroke} strokeWidth="1" fill="none" />
-            <SvgCircle cx="26" cy="26" r="2" fill={dot} />
-            <SvgCircle cx="1" cy="1" r="1" fill={dot} />
-            <SvgCircle cx="51" cy="1" r="1" fill={dot} />
-            <SvgCircle cx="1" cy="51" r="1" fill={dot} />
-            <SvgCircle cx="51" cy="51" r="1" fill={dot} />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#cwp)" />
-      </Svg>
-    </View>
-  );
-}
 
 // ─── Image/Video preview modal ─────────────────────────────────────────────────
 interface PreviewAsset {

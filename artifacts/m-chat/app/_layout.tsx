@@ -8,17 +8,20 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, Pressable, Image } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CallProvider, useCall } from "@/context/CallContext";
+import { WallpaperProvider, useWallpaper } from "@/context/WallpaperContext";
+import BirthdayConfetti from "@/components/BirthdayConfetti";
 import { setBaseUrl } from "@workspace/api-client-react";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
@@ -121,6 +124,40 @@ function IncomingCallOverlay() {
   );
 }
 
+function BirthdayLayer() {
+  const { isBirthday, user } = useAuth();
+  const [shown, setShown] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (isBirthday && user && !shown) {
+      setShown(true);
+      setVisible(true);
+    }
+  }, [isBirthday, user]);
+
+  if (!visible) return null;
+  return <BirthdayConfetti onDone={() => setVisible(false)} />;
+}
+
+function WallpaperSync() {
+  const { user } = useAuth();
+  const { loadWallpaper } = useWallpaper();
+
+  useEffect(() => {
+    if (user) {
+      loadWallpaper({
+        type: (user.chatWallpaperType ?? "none") as any,
+        value: user.chatWallpaperValue ?? "",
+        opacity: user.chatWallpaperOpacity ?? 85,
+        blur: user.chatWallpaperBlur ?? 0,
+      });
+    }
+  }, [user?.id]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
     <>
@@ -135,6 +172,8 @@ function RootLayoutNav() {
         <Stack.Screen name="admin-dashboard" options={{ headerShown: false }} />
       </Stack>
       <IncomingCallOverlay />
+      <BirthdayLayer />
+      <WallpaperSync />
     </>
   );
 }
@@ -161,13 +200,15 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <AuthProvider>
-              <CallProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </CallProvider>
+              <WallpaperProvider>
+                <CallProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </CallProvider>
+              </WallpaperProvider>
             </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>

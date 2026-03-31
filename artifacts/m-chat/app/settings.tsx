@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  View, Text, Pressable, Modal, ScrollView, Alert, Platform, Image, Switch, ActivityIndicator, TextInput
+  View, Text, Pressable, Modal, ScrollView, Alert, Platform, Image, Switch, ActivityIndicator, TextInput, Dimensions, PanResponder
 } from "react-native";
 import UserBadge from "@/components/UserBadge";
 import { router } from "expo-router";
@@ -15,6 +15,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type SoundType, previewSound, updateSoundEnabled, updateSoundType } from "@/utils/sounds";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/utils/api";
+import * as ImagePicker from "expo-image-picker";
+import { useWallpaper, GRADIENT_PRESETS, WallpaperConfig, WallpaperType } from "@/context/WallpaperContext";
 
 const THEME_OPTIONS: { key: ThemeName; label: string; emoji: string; colors: string[]; desc: string }[] = [
   { key: "midnight", label: "Midnight Hacker", emoji: "💀", colors: ["#080C08", "#00CC44", "#0F1A0F"], desc: "Dark green terminal" },
@@ -74,6 +76,39 @@ const LANGUAGES = [
   "Hausa", "Yoruba", "Igbo", "Amharic", "Somali", "Zulu", "Afrikaans",
 ];
 
+function SimpleSlider({ value, min, max, onChange, color }: { value: number; min: number; max: number; onChange: (v: number) => void; color: string }) {
+  const [trackWidth, setTrackWidth] = useState(1);
+  const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const thumbLeft = pct * (trackWidth - 20);
+
+  const handleMove = (x: number) => {
+    const ratio = Math.max(0, Math.min(1, x / trackWidth));
+    const v = Math.round(min + ratio * (max - min));
+    onChange(v);
+  };
+
+  return (
+    <View
+      style={{ height: 44, justifyContent: "center" }}
+      onLayout={e => setTrackWidth(e.nativeEvent.layout.width)}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderGrant={e => handleMove(e.nativeEvent.locationX)}
+      onResponderMove={e => handleMove(e.nativeEvent.locationX)}
+    >
+      <View style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.12)" }}>
+        <View style={{ width: `${pct * 100}%` as any, height: "100%", borderRadius: 2, backgroundColor: color }} />
+      </View>
+      <View style={{
+        position: "absolute", left: thumbLeft, top: 12,
+        width: 20, height: 20, borderRadius: 10,
+        backgroundColor: color, borderWidth: 2.5, borderColor: "#fff",
+        shadowColor: color, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4,
+      }} />
+    </View>
+  );
+}
+
 const BUBBLE_COLORS = [
   { key: "", label: "Default" },
   { key: "#2563EB", label: "Blue" },
@@ -109,6 +144,10 @@ export default function SettingsScreen() {
   const [vipUpdating, setVipUpdating] = useState<number | null>(null);
   const [loginAlertDismissed, setLoginAlertDismissed] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const { wallpaper, setWallpaper } = useWallpaper();
+  const [showWallpaper, setShowWallpaper] = useState(false);
+  const [draftWallpaper, setDraftWallpaper] = useState<WallpaperConfig>({ type: "none", value: "", opacity: 85, blur: 0 });
+  const [savingWallpaper, setSavingWallpaper] = useState(false);
 
   const { data: blockedUsers, isLoading: loadingBlocked } = useQuery<{
     blockId: number;
@@ -521,6 +560,22 @@ export default function SettingsScreen() {
               </View>
             }
             onPress={() => setShowBubbleStyle(true)}
+          />
+          <Row icon="image" iconColor="#8B5CF6" label="Chat Wallpaper"
+            sublabel={wallpaper.type === "none" ? "No wallpaper set" : wallpaper.type === "gradient" ? `${GRADIENT_PRESETS.find(p => p.key === wallpaper.value)?.label ?? "Gradient"} preset` : "Custom image"}
+            right={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {wallpaper.type === "gradient" && (() => {
+                  const preset = GRADIENT_PRESETS.find(p => p.key === wallpaper.value);
+                  return preset ? (
+                    <LinearGradient colors={preset.colors as any} style={{ width: 22, height: 22, borderRadius: 11 }} />
+                  ) : null;
+                })()}
+                {wallpaper.type === "image" && <Feather name="image" size={16} color="#8B5CF6" />}
+                <Feather name="chevron-right" size={17} color={txtMut} />
+              </View>
+            }
+            onPress={() => { setDraftWallpaper({ ...wallpaper }); setShowWallpaper(true); }}
           />
           <Row icon="globe" iconColor="#2563EB" label="Translation Language"
             sublabel="Language to translate messages into"
@@ -1158,6 +1213,145 @@ export default function SettingsScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* ── Chat Wallpaper Picker ── */}
+      <Modal visible={showWallpaper} animationType="slide" transparent onRequestClose={() => setShowWallpaper(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.65)" }} onPress={() => setShowWallpaper(false)}>
+          <Pressable
+            onPress={e => e.stopPropagation()}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: surf, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 20, paddingBottom: insets.bottom + 24 }}
+          >
+            <View style={{ width: 40, height: 4, backgroundColor: border, borderRadius: 2, alignSelf: "center", marginBottom: 18 }} />
+            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: txt, marginBottom: 20 }}>Chat Wallpaper</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* Type tabs */}
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+                {(["none", "gradient", "image"] as WallpaperType[]).map(t => (
+                  <Pressable
+                    key={t}
+                    onPress={() => setDraftWallpaper(prev => ({ ...prev, type: t, value: t === "none" ? "" : prev.value }))}
+                    style={{
+                      flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center",
+                      backgroundColor: draftWallpaper.type === t ? primary : `${primary}18`,
+                      borderWidth: 1, borderColor: draftWallpaper.type === t ? primary : border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: draftWallpaper.type === t ? "#fff" : txtSec, textTransform: "capitalize" }}>
+                      {t === "none" ? "None" : t === "gradient" ? "Gradient" : "Image"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Gradient grid */}
+              {draftWallpaper.type === "gradient" && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
+                  {GRADIENT_PRESETS.map(preset => {
+                    const selected = draftWallpaper.value === preset.key;
+                    return (
+                      <Pressable
+                        key={preset.key}
+                        onPress={() => setDraftWallpaper(prev => ({ ...prev, value: preset.key }))}
+                        style={{ width: "30%", borderRadius: 14, overflow: "hidden", borderWidth: selected ? 2.5 : 1.5, borderColor: selected ? primary : "transparent" }}
+                      >
+                        <LinearGradient
+                          colors={preset.colors as any}
+                          style={{ height: 64, justifyContent: "flex-end", padding: 6 }}
+                        >
+                          <Text style={{ fontSize: 11, color: "#fff", fontFamily: "Inter_600SemiBold" }}>{preset.label}</Text>
+                        </LinearGradient>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Image picker */}
+              {draftWallpaper.type === "image" && (
+                <View style={{ marginBottom: 20 }}>
+                  <Pressable
+                    onPress={async () => {
+                      if (Platform.OS !== "web") {
+                        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (!perm.granted) { Alert.alert("Permission needed", "Allow access to your photos."); return; }
+                      }
+                      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", quality: 0.7, base64: true });
+                      if (!result.canceled && result.assets[0]) {
+                        const asset = result.assets[0];
+                        const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                        setDraftWallpaper(prev => ({ ...prev, value: uri }));
+                      }
+                    }}
+                    style={({ pressed }) => ({ backgroundColor: pressed ? `${primary}33` : `${primary}18`, borderRadius: 14, padding: 16, alignItems: "center", flexDirection: "row", gap: 10, borderWidth: 1, borderColor: `${primary}44`, marginBottom: draftWallpaper.value ? 12 : 0 })}
+                  >
+                    <Feather name="image" size={20} color={primary} />
+                    <Text style={{ color: primary, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+                      {draftWallpaper.value ? "Change Image" : "Pick from Library"}
+                    </Text>
+                  </Pressable>
+                  {draftWallpaper.value ? (
+                    <View style={{ borderRadius: 14, overflow: "hidden", height: 120 }}>
+                      <Image source={{ uri: draftWallpaper.value }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                    </View>
+                  ) : null}
+                </View>
+              )}
+
+              {/* Opacity slider */}
+              {draftWallpaper.type !== "none" && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_600SemiBold" }}>Opacity</Text>
+                    <Text style={{ fontSize: 13, color: primary, fontFamily: "Inter_600SemiBold" }}>{draftWallpaper.opacity}%</Text>
+                  </View>
+                  <SimpleSlider value={draftWallpaper.opacity} min={20} max={100} onChange={v => setDraftWallpaper(prev => ({ ...prev, opacity: v }))} color={primary} />
+                </View>
+              )}
+
+              {/* Blur slider */}
+              {draftWallpaper.type !== "none" && (
+                <View style={{ marginBottom: 24 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_600SemiBold" }}>Blur</Text>
+                    <Text style={{ fontSize: 13, color: accent, fontFamily: "Inter_600SemiBold" }}>{draftWallpaper.blur}</Text>
+                  </View>
+                  <SimpleSlider value={draftWallpaper.blur} min={0} max={20} onChange={v => setDraftWallpaper(prev => ({ ...prev, blur: v }))} color={accent} />
+                </View>
+              )}
+
+              {/* Apply / Cancel */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  onPress={() => setShowWallpaper(false)}
+                  style={{ flex: 1, backgroundColor: `${primary}18`, borderRadius: 14, height: 50, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: border }}
+                >
+                  <Text style={{ color: txtSec, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  disabled={savingWallpaper || (draftWallpaper.type !== "none" && !draftWallpaper.value)}
+                  onPress={async () => {
+                    setSavingWallpaper(true);
+                    try {
+                      await setWallpaper(draftWallpaper);
+                      setShowWallpaper(false);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                    } finally { setSavingWallpaper(false); }
+                  }}
+                  style={({ pressed }) => ({ flex: 2, backgroundColor: (savingWallpaper || (draftWallpaper.type !== "none" && !draftWallpaper.value)) ? `${primary}66` : primary, borderRadius: 14, height: 50, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.85 : 1 })}
+                >
+                  {savingWallpaper ? <ActivityIndicator color="#fff" /> : (
+                    <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+                      {draftWallpaper.type === "none" ? "Remove Wallpaper" : "Apply Wallpaper"}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </View>
   );
 }

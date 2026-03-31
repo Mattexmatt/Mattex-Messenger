@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { router } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+import * as Haptics from "expo-haptics";
 import { setToken, apiRequest } from "@/utils/api";
 import { setupNotifications } from "@/utils/notificationSetup";
 
@@ -21,12 +22,35 @@ export interface UserData {
   email?: string | null;
   emailVerified?: boolean;
   createdAt: string;
+  birthdate?: string | null;
+  chatWallpaperType?: string | null;
+  chatWallpaperValue?: string | null;
+  chatWallpaperOpacity?: number | null;
+  chatWallpaperBlur?: number | null;
+}
+
+function checkIsBirthday(birthdate?: string | null): boolean {
+  if (!birthdate) return false;
+  try {
+    const today = new Date();
+    const parts = birthdate.split("-");
+    if (parts.length !== 3) return false;
+    const mm = parts[1];
+    const dd = parts[2];
+    return (
+      String(today.getMonth() + 1).padStart(2, "0") === mm &&
+      String(today.getDate()).padStart(2, "0") === dd
+    );
+  } catch {
+    return false;
+  }
 }
 
 interface AuthContextType {
   user: UserData | null;
   token: string | null;
   isLoading: boolean;
+  isBirthday: boolean;
   login: (token: string, user: UserData) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: UserData) => void;
@@ -36,6 +60,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   token: null,
   isLoading: true,
+  isBirthday: false,
   login: async () => {},
   logout: async () => {},
   updateUser: () => {},
@@ -127,6 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const tokenRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const notifListenersRef = useRef<{ remove: () => void }[]>([]);
+
+  const isBirthday = checkIsBirthday(user?.birthdate);
 
   const startHeartbeat = () => {
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
@@ -270,6 +297,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     connectSessionWs(t);
     attachNotifListeners();
     initPush(t);
+    // Birthday haptic burst on login
+    if (Platform.OS !== "web" && checkIsBirthday(u.birthdate)) {
+      setTimeout(async () => {
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}), 300);
+          setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}), 600);
+        } catch {}
+      }, 800);
+    }
   };
 
   const logout = async () => {
@@ -282,7 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isBirthday, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

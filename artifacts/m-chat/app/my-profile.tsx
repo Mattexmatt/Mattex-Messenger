@@ -49,10 +49,24 @@ export default function MyProfileScreen() {
   const [avatarUri, setAvatarUri] = useState<string>(user?.avatarUrl ?? "");
   const [avatarChanged, setAvatarChanged] = useState(false);
   const [bio, setBio] = useState(user?.bio ?? "");
+  const [birthdate, setBirthdate] = useState((user as any)?.birthdate ?? "");
   const [hobbies, setHobbies] = useState<string[]>(parseHobbies(user?.hobbies));
   const [hobbyInput, setHobbyInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
+
+  const todayBirthday = (() => {
+    if (!(user as any)?.birthdate) return false;
+    try {
+      const today = new Date();
+      const parts = ((user as any).birthdate as string).split("-");
+      if (parts.length !== 3) return false;
+      return (
+        String(today.getMonth() + 1).padStart(2, "0") === parts[1] &&
+        String(today.getDate()).padStart(2, "0") === parts[2]
+      );
+    } catch { return false; }
+  })();
 
   const bg = theme.background;
   const surf = theme.surface;
@@ -73,6 +87,7 @@ export default function MyProfileScreen() {
     setAvatarUri(user?.avatarUrl ?? "");
     setAvatarChanged(false);
     setBio(user?.bio ?? "");
+    setBirthdate((user as any)?.birthdate ?? "");
     setHobbies(parseHobbies(user?.hobbies));
     setHobbyInput("");
     setShowEdit(true);
@@ -133,6 +148,7 @@ export default function MyProfileScreen() {
       displayName: displayName.trim(),
       bio: bio.trim() || null,
       hobbies: JSON.stringify(hobbies),
+      birthdate: birthdate.trim() || null,
       ...(avatarChanged ? { avatarUrl: avatarUri.trim() || null } : {}),
     };
     updateUser(optimisticUser);
@@ -143,6 +159,7 @@ export default function MyProfileScreen() {
         displayName: displayName.trim(),
         bio: bio.trim() || null,
         hobbies: JSON.stringify(hobbies),
+        birthdate: birthdate.trim() || null,
       };
       // Only include avatar if it was actually changed (base64 is large — skip if unchanged)
       if (avatarChanged) {
@@ -313,10 +330,20 @@ export default function MyProfileScreen() {
             </View>
           </Pressable>
 
-          <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: txt, marginTop: 16 }}>{user.displayName}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16 }}>
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: txt }}>{user.displayName}</Text>
+            {todayBirthday && (
+              <Text style={{ fontSize: 26 }}>🎂</Text>
+            )}
+          </View>
           <Text style={{ fontSize: 15, color: txtSec, fontFamily: "Inter_400Regular", marginTop: 4 }}>@{user.username}</Text>
           {user.isOwner && (
             <Text style={{ fontSize: 12, color: "rgba(255,215,0,0.6)", fontFamily: "Inter_400Regular", marginTop: 2 }}>Founder & CEO · Allan Matt Tech</Text>
+          )}
+          {todayBirthday && (
+            <View style={{ marginTop: 8, backgroundColor: "#FF6B6B22", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: "#FF6B6B66" }}>
+              <Text style={{ fontSize: 13, color: "#FF6B6B", fontFamily: "Inter_600SemiBold" }}>🎉 Happy Birthday!</Text>
+            </View>
           )}
           <View style={{ marginTop: 10 }}>
             <UserBadge isOwner={user.isOwner} role={user.role} size="lg" />
@@ -652,6 +679,19 @@ export default function MyProfileScreen() {
                 numberOfLines={4}
               />
               <Text style={{ fontSize: 11, color: txtMut, fontFamily: "Inter_400Regular", textAlign: "right", marginTop: -12, marginBottom: 16 }}>{bio.length}/200</Text>
+
+              {/* Birthday */}
+              <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_600SemiBold", marginBottom: 6 }}>Birthday 🎂</Text>
+              <TextInput
+                style={{ backgroundColor: theme.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: txt, borderWidth: 1, borderColor: border, fontFamily: "Inter_400Regular", marginBottom: 6 }}
+                value={birthdate}
+                onChangeText={(t) => setBirthdate(t)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={txtMut}
+                keyboardType="numbers-and-punctuation"
+                maxLength={10}
+              />
+              <Text style={{ fontSize: 11, color: txtMut, fontFamily: "Inter_400Regular", marginBottom: 16 }}>Your birthday triggers confetti and a celebration badge!</Text>
 
               {/* Hobbies */}
               <Text style={{ fontSize: 13, color: txtSec, fontFamily: "Inter_600SemiBold", marginBottom: 10 }}>Hobbies & Interests</Text>

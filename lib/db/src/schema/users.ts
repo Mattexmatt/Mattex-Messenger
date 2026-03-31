@@ -26,6 +26,12 @@ export const usersTable = pgTable("users", {
   emailVerifyExpiry: timestamp("email_verify_expiry"),
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
+  // Lifecycle & personalization
+  birthdate: text("birthdate"),
+  chatWallpaperType: text("chat_wallpaper_type").default("none"),
+  chatWallpaperValue: text("chat_wallpaper_value"),
+  chatWallpaperOpacity: integer("chat_wallpaper_opacity").default(85),
+  chatWallpaperBlur: integer("chat_wallpaper_blur").default(0),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
