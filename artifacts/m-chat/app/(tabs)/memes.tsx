@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, FlatList, Pressable, TextInput,
-  Image, Modal, ActivityIndicator, Alert, Platform
+  Image, Modal, ActivityIndicator, Alert, Platform, StatusBar
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, AntDesign } from "@expo/vector-icons";
@@ -11,6 +11,8 @@ import { apiRequest } from "@/utils/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system";
 
 interface MemeAuthor {
   id: number; username: string; displayName: string; avatarUrl?: string | null;
@@ -42,9 +44,9 @@ function VerifiedBadge({ size = 16 }: { size?: number }) {
   );
 }
 
-function MemeCard({ item, theme, isOwner, onLike, onModerate }: {
+function MemeCard({ item, theme, isOwner, onLike, onModerate, onView }: {
   item: Meme; theme: any; isOwner: boolean;
-  onLike: (m: Meme) => void; onModerate: (m: Meme) => void;
+  onLike: (m: Meme) => void; onModerate: (m: Meme) => void; onView: (m: Meme) => void;
 }) {
   const [showFlagged, setShowFlagged] = useState(false);
   const isFlagged = item.status === "flagged";
@@ -98,7 +100,13 @@ function MemeCard({ item, theme, isOwner, onLike, onModerate }: {
           <Text style={{ fontSize: 13, color: txtMut, fontFamily: "Inter_400Regular", textAlign: "center" }}>This post was flagged for potentially inappropriate content. Tap to view.</Text>
         </Pressable>
       ) : (
-        <Image source={{ uri: item.imageUrl }} style={{ width: "100%", height: 280, backgroundColor: theme.surfaceElevated }} resizeMode="cover" />
+        <Pressable onPress={() => onView(item)} activeOpacity={0.92}>
+          <Image source={{ uri: item.imageUrl }} style={{ width: "100%", height: 280, backgroundColor: theme.surfaceElevated }} resizeMode="cover" />
+          <View style={{ position: "absolute", bottom: 10, right: 10, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Feather name="maximize-2" size={12} color="#fff" />
+            <Text style={{ fontSize: 11, color: "#fff", fontFamily: "Inter_500Medium" }}>Tap to expand</Text>
+          </View>
+        </Pressable>
       )}
       {item.caption && (
         <Text style={{ fontSize: 14, color: txt, fontFamily: "Inter_400Regular", paddingHorizontal: 14, paddingTop: 10, lineHeight: 20 }}>{item.caption}</Text>
@@ -132,6 +140,8 @@ export default function MemesScreen() {
   const [pickedImage, setPickedImage] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [moderateTarget, setModerateTarget] = useState<Meme | null>(null);
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const { data: memes, isLoading, refetch, isRefetching } = useQuery<Meme[]>({
     queryKey: ["memes", token],
@@ -269,6 +279,38 @@ export default function MemesScreen() {
     );
   };
 
+  const handleSave = async (meme: Meme) => {
+    if (Platform.OS === "web") {
+      try {
+        const a = document.createElement("a");
+        a.href = meme.imageUrl;
+        a.download = `meme_${meme.id}.jpg`;
+        a.target = "_blank";
+        a.click();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } catch { Alert.alert("Error", "Could not download image."); }
+      return;
+    }
+    setSaving(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow access to your photo library to save images.");
+        return;
+      }
+      const ext = meme.imageUrl.includes(".png") ? "png" : "jpg";
+      const fileUri = `${FileSystem.cacheDirectory}meme_${meme.id}.${ext}`;
+      await FileSystem.downloadAsync(meme.imageUrl, fileUri);
+      await MediaLibrary.saveToLibraryAsync(fileUri);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Alert.alert("Saved!", "Image saved to your photo library.");
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Could not save image.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const primary = theme.primary;
   const txt = theme.text;
   const txtSec = theme.textSecondary;
@@ -288,6 +330,7 @@ export default function MemesScreen() {
       isOwner={isOwner}
       onLike={handleLike}
       onModerate={setModerateTarget}
+      onView={setSelectedMeme}
     />
   );
 
@@ -555,6 +598,77 @@ export default function MemesScreen() {
           </Pressable>
         </Modal>
       )}
+
+      {/* ── Full-screen image viewer ── */}
+      <Modal
+        visible={!!selectedMeme}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setSelectedMeme(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" }}>
+          {/* Top bar */}
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingTop: insets.top + 12, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Pressable
+              onPress={() => setSelectedMeme(null)}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+            >
+              <Feather name="x" size={20} color="#fff" />
+            </Pressable>
+            {selectedMeme && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {selectedMeme.isOfficial && <VerifiedBadge size={16} />}
+                <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" }} numberOfLines={1}>
+                  {selectedMeme.isOfficial ? "M Chat Official" : selectedMeme.author?.displayName ?? "Meme"}
+                </Text>
+              </View>
+            )}
+            <Pressable
+              onPress={() => selectedMeme && handleSave(selectedMeme)}
+              disabled={saving}
+              style={({ pressed }) => ({
+                flexDirection: "row", alignItems: "center", gap: 7,
+                backgroundColor: saving ? "rgba(255,255,255,0.1)" : primary,
+                paddingHorizontal: 16, paddingVertical: 9, borderRadius: 22,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="download" size={16} color={isDark ? "#000" : "#fff"} />
+                  <Text style={{ color: isDark ? "#000" : "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" }}>Save</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+
+          {/* Image */}
+          {selectedMeme && (
+            <Pressable style={{ flex: 1, justifyContent: "center" }} onPress={() => setSelectedMeme(null)}>
+              <Image
+                source={{ uri: selectedMeme.imageUrl }}
+                style={{ width: "100%", height: "80%" }}
+                resizeMode="contain"
+              />
+            </Pressable>
+          )}
+
+          {/* Caption */}
+          {selectedMeme?.caption && (
+            <View style={{ position: "absolute", bottom: insets.bottom + 16, left: 16, right: 16 }}>
+              <View style={{ backgroundColor: "rgba(0,0,0,0.7)", borderRadius: 14, padding: 14 }}>
+                <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 }}>
+                  {selectedMeme.caption}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
     </View>
   );
 }
